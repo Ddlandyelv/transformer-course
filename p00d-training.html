@@ -34,7 +34,7 @@
   <h2><span class="n">1</span>训练就是四步，一直转圈</h2>
   <div class="sec">
     <p>整篇论文的 §5 讲的全是这四个动作用的什么参数、什么技巧。动作本身很简单：</p>
-    <table class="tb">
+    <div class="tw"><table class="tb">
       <thead><tr><th style="width:12%">步</th><th style="width:20%">名字</th><th style="width:34%">做什么</th><th>产出</th></tr></thead>
       <tbody>
         <tr><td><b>1</b></td><td>前向传播<br><i>forward</i></td><td>把一批输入喂进去，一层层算到输出</td><td>一组预测分数</td></tr>
@@ -42,7 +42,7 @@
         <tr><td><b>3</b></td><td>反向传播<br><i>backward</i></td><td>从损失往回推，算出每个参数该往哪边调</td><td>每个参数一个梯度</td></tr>
         <tr><td><b>4</b></td><td>更新参数<br><i>update</i></td><td>每个参数朝梯度方向挪一小步</td><td>新的参数</td></tr>
       </tbody>
-    </table>
+    </table></div>
     <p>然后回到第 1 步，换一批数据，继续。论文的 base 模型把这一圈转了 <b>10 万次</b>（§5.2）。</p>
   </div>
 
@@ -52,26 +52,26 @@
 
     <h3>先看模型吐出什么</h3>
     <p>模型最后输出的不是概率，是三个任意的分数（叫 logits）：</p>
-    <table class="tb">
+    <div class="tw"><table class="tb">
       <thead><tr><th style="width:30%">词</th><th style="width:20%">原始分数</th><th>含义</th></tr></thead>
       <tbody>
         <tr><td>猫</td><td>2.0</td><td>模型觉得最可能</td></tr>
         <tr><td>狗</td><td>1.0</td><td>次之</td></tr>
         <tr><td>鱼</td><td>0.1</td><td>几乎排除</td></tr>
       </tbody>
-    </table>
+    </table></div>
 
     <h3>再用 softmax 变成概率</h3>
     <p>分数不能直接用（可能有负数、加起来也不等于 1）。softmax 做两件事：先取指数把负数变正、再归一化让总和为 1。</p>
     <div class="q">e^2.0 = 7.389　　e^1.0 = 2.718　　e^0.1 = 1.105<br>总和 = 11.212</div>
-    <table class="tb">
+    <div class="tw"><table class="tb">
       <thead><tr><th style="width:30%">词</th><th>概率</th><th>算式</th></tr></thead>
       <tbody>
         <tr><td>猫</td><td><b>65.9%</b></td><td>7.389 ÷ 11.212</td></tr>
         <tr><td>狗</td><td><b>24.2%</b></td><td>2.718 ÷ 11.212</td></tr>
         <tr><td>鱼</td><td><b>9.9%</b></td><td>1.105 ÷ 11.212</td></tr>
       </tbody>
-    </table>
+    </table></div>
     <p>三项加起来正好 100%。<b>这个"和为 1"的性质，是 softmax 唯一必须做到的事。</b></p>
 
     <h3>最后算损失：只看正确答案那一项</h3>
@@ -82,14 +82,14 @@
       <div class="x">易错：损失<b>不看</b>错误选项的概率。模型给"猫"90%、"狗"5%、"鱼"5%，和给"猫"90%、"鱼"9%、"狗"1%，只要正确答案是猫，损失完全一样。错误选项之间的分配由别的东西（比如标签平滑）来管。</div>
     </div>
 
-    <table class="tb">
+    <div class="tw"><table class="tb">
       <thead><tr><th style="width:26%">如果正确答案是</th><th style="width:22%">模型给它的概率</th><th style="width:22%">损失 = −log(P)</th><th>感受</th></tr></thead>
       <tbody>
         <tr><td>猫</td><td>65.9%</td><td><b>0.42</b></td><td>还行，但不够自信</td></tr>
         <tr><td>狗</td><td>24.2%</td><td><b>1.42</b></td><td>错得明显</td></tr>
         <tr><td>鱼</td><td>9.9%</td><td><b>2.31</b></td><td>错得离谱，罚得很重</td></tr>
       </tbody>
-    </table>
+    </table></div>
     <p>这就是交叉熵的脾气：<b>它不关心你答对了多少，只关心你给正确答案留了多少位置。</b>
       概率从 0.66 掉到 0.10，损失从 0.42 涨到 2.31，翻了五倍多。</p>
     <div class="note">
@@ -123,7 +123,7 @@
       <div class="x">易错：学习率不是常数。论文用的是一种先升后降的调度（warmup），第 15 页会把这根曲线完整画出来。</div>
     </div>
     <p>用具体数字感受一下"直接乘"的问题。假设某个参数的梯度是 0.8：</p>
-    <table class="tb">
+    <div class="tw"><table class="tb">
       <thead><tr><th style="width:26%">学习率</th><th style="width:30%">这一步挪多少</th><th>后果</th></tr></thead>
       <tbody>
         <tr><td>0.0001</td><td>0.00008</td><td>要挪 10 万步才能挪 8 个单位，几乎等于没动</td></tr>
@@ -131,7 +131,7 @@
         <tr><td>1.0</td><td>0.8</td><td>步子过大，容易在最低点两侧来回跳</td></tr>
         <tr><td>100</td><td>80</td><td>直接把参数甩飞，损失变 NaN</td></tr>
       </tbody>
-    </table>
+    </table></div>
     <div class="def">
       <div class="def-h"><b>Adam</b><i>adaptive moment estimation</i><span class="loc">§5.3 "We used the Adam optimizer"</span></div>
       <p><b>它比"直接乘梯度"多做什么：</b>给每个参数单独维护一个"最近梯度有多大"的记录，梯度大的参数步子自动缩小，梯度小的参数步子自动放大。</p>

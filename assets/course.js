@@ -310,6 +310,12 @@ function autoLinkTerms(){
     });
   });
   document.addEventListener('scroll',()=>{if(cur)hide()},{passive:true});
+  // 触屏没有 hover：点术语展开后，点空白处要能收起来
+  document.addEventListener('click',e=>{
+    if(!cur) return;
+    if(e.target.closest('.term')||e.target.closest('#tip')) return;
+    hide();
+  });
 
   /* 页末术语索引 */
   const host=document.getElementById('termIndex');

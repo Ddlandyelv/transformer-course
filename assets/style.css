@@ -395,3 +395,16 @@ table.mx td.best{border-color:var(--accent);font-weight:600}
   .whybox-g>div{border-right:0;border-bottom:1px solid var(--accent-line)}
   .whybox-g>div:last-child{border-bottom:0}
 }
+
+/* ===== 窄屏表格适配 ===== */
+@media(max-width:640px){
+  .tw{margin-top:14px;border-radius:8px}
+  table.tb{min-width:0;font-size:12.2px;table-layout:auto}
+  table.tb th{white-space:normal;padding:8px 9px;font-size:10.6px;line-height:1.45}
+  table.tb td{padding:8px 9px;line-height:1.6;word-break:break-word}
+  /* 防止窄列把中文压成竖排 */
+  table.tb th,table.tb td{min-width:2.9em}
+  table.tb code{font-size:11px;white-space:normal;word-break:break-word}
+  /* 进度看板：窄屏隐藏「已答」列，正确率列已含同等信息 */
+  #pageTable th:nth-child(3),#pageTable td:nth-child(3){display:none}
+}

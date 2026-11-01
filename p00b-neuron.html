@@ -70,26 +70,26 @@
     <p>用两个信号、三个参数，把这个神经元搭出来，然后拿四个句子试。</p>
 
     <h3>先定输入</h3>
-    <table class="tb">
+    <div class="tw"><table class="tb">
       <thead><tr><th style="width:16%">信号</th><th style="width:30%">含义</th><th>取值</th></tr></thead>
       <tbody>
         <tr><td><b>x₁</b></td><td>句末有问号吗</td><td>有 = 1，没有 = 0</td></tr>
         <tr><td><b>x₂</b></td><td>句子里有「吗 / 呢 / 吧」吗</td><td>有 = 1，没有 = 0</td></tr>
       </tbody>
-    </table>
+    </table></div>
 
     <h3>再定参数</h3>
-    <table class="tb">
+    <div class="tw"><table class="tb">
       <thead><tr><th style="width:16%">参数</th><th style="width:16%">取值</th><th>这个值意味着什么</th></tr></thead>
       <tbody>
         <tr><td><b>w₁</b></td><td>2.0</td><td>问号是<b>强</b>证据，一个就问号顶 2 分</td></tr>
         <tr><td><b>w₂</b></td><td>1.5</td><td>「吗」是<b>弱</b>一点证据，但也很有用</td></tr>
         <tr><td><b>b</b></td><td>−2.5</td><td>门槛很高：光有一个弱证据还不够，必须凑够 2.5 分才判"是疑问句"</td></tr>
       </tbody>
-    </table>
+    </table></div>
 
     <h3>然后逐句算</h3>
-    <table class="tb">
+    <div class="tw"><table class="tb">
       <thead><tr><th style="width:26%">句子</th><th style="width:10%">x₁</th><th style="width:10%">x₂</th><th style="width:26%">算式</th><th style="width:12%">结果</th><th>判断</th></tr></thead>
       <tbody>
         <tr><td>你吃饭了<b>吗</b>？</td><td>1</td><td>1</td><td>2.0×1 + 1.5×1 − 2.5</td><td><b>+1.0</b></td><td>ReLU(1.0)=1.0 &gt; 0 → <b>是</b> ✓</td></tr>
@@ -97,7 +97,7 @@
         <tr><td>你吃饭了吗。</td><td>0</td><td>1</td><td>2.0×0 + 1.5×1 − 2.5</td><td><b>−1.0</b></td><td>ReLU(−1.0)=0 → <b>不是</b> ✗</td></tr>
         <tr><td>你吃饭了？吗</td><td>1</td><td>0</td><td>2.0×1 + 1.5×0 − 2.5</td><td><b>−0.5</b></td><td>ReLU(−0.5)=0 → <b>不是</b> ✗</td></tr>
       </tbody>
-    </table>
+    </table></div>
 
     <p>第三、四行是故意的：拿掉问号只剩「吗」，或者拿掉「吗」只剩问号，都凑不够 2.5 分。
       这正说明<b>偏置在控制门槛</b>——参数调成这样，这个神经元的规则就是"两个证据都齐才算疑问句"。</p>
@@ -175,7 +175,7 @@
 
     <h3>一个具体的反例</h3>
     <p>任务：判断"两个信号是不是不一样"。</p>
-    <table class="tb">
+    <div class="tw"><table class="tb">
       <thead><tr><th style="width:20%">x₁</th><th style="width:20%">x₂</th><th>算不算"不一样"</th></tr></thead>
       <tbody>
         <tr><td>0</td><td>0</td><td>不算（两个都没有）</td></tr>
@@ -183,7 +183,7 @@
         <tr><td>1</td><td>0</td><td><b>算</b></td></tr>
         <tr><td>0</td><td>1</td><td><b>算</b></td></tr>
       </tbody>
-    </table>
+    </table></div>
     <p>画在平面上，(0,0) 和 (1,1) 在左下和右上，(1,0) 和 (0,1) 在左上和右下。
       两类点是<b>交叉</b>的——你没法用一条直线把两个对角圈在一起、另外两个分开。这就是著名的 <b>XOR 问题</b>。</p>
     <div class="note warn">
@@ -198,7 +198,7 @@
     <p>在中间插一层，把原来的两个坐标换成两个新坐标：</p>
     <div class="q">新坐标① = x₁ + x₂　（两个信号加起来有多少）<br>新坐标② = 两个信号差多少</div>
     <p>四个点搬过去之后：</p>
-    <table class="tb">
+    <div class="tw"><table class="tb">
       <thead><tr><th style="width:22%">原来的点</th><th style="width:30%">新坐标</th><th>类别</th></tr></thead>
       <tbody>
         <tr><td>(0, 0)</td><td>(0, 0)</td><td>不算</td></tr>
@@ -206,7 +206,7 @@
         <tr><td>(1, 0)</td><td>(1, <b>1</b>)</td><td><b>算</b></td></tr>
         <tr><td>(0, 1)</td><td>(1, <b>1</b>)</td><td><b>算</b></td></tr>
       </tbody>
-    </table>
+    </table></div>
     <p>搬完之后，两类点的"第二个坐标"完全不同：不算的一组全是 0，算的一组全是 1。
       这时一条<b>水平直线</b>就能把它们分开——问题从"分不开"变成了"很容易分"。</p>
 

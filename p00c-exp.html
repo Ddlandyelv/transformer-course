@@ -49,7 +49,7 @@
     <p><code>2³</code> 表示 2×2×2 = 8。这里的 2 叫<b>底数</b>，3 叫<b>指数</b>。指数函数的定义很朴素：
       <b>底数固定，指数随便变</b>，写作 <code>2ˣ</code>。</p>
     <p>它有一个人人都该有的直觉：<b>指数每加 1，结果就乘一次底数</b>。</p>
-    <table class="tb">
+    <div class="tw"><table class="tb">
       <thead><tr><th style="width:24%">指数 x</th><th style="width:24%">2ˣ</th><th>怎么来的</th></tr></thead>
       <tbody>
         <tr><td>0</td><td>1</td><td>规定任何数的 0 次方都是 1</td></tr>
@@ -59,7 +59,7 @@
         <tr><td>20</td><td>1,048,576</td><td>再乘 10 次，已经过百万</td></tr>
         <tr><td>100</td><td>约 1.27×10³⁰</td><td>31 位数</td></tr>
       </tbody>
-    </table>
+    </table></div>
     <p>这就是指数函数最鲜明的性格：<b>涨得极快，快到不讲道理</b>。指数只加了 90（从 10 到 100），
       结果从一千涨到了 10³⁰——差了一亿亿亿倍。</p>
     <div class="note">
@@ -75,7 +75,7 @@
 
     <h3>从一个存款问题说起</h3>
     <p>假设有一种存款，年利率 100%（不要纠结现实，这只是个数学设定）。存 1 元，一年后拿多少？</p>
-    <table class="tb">
+    <div class="tw"><table class="tb">
       <thead><tr><th style="width:26%">多久结算一次利息</th><th style="width:30%">算式</th><th>一年后本息</th></tr></thead>
       <tbody>
         <tr><td>一年一次</td><td>1 × 2</td><td><b>2.0000</b></td></tr>
@@ -85,7 +85,7 @@
         <tr><td>每小时一次</td><td>(1 + 1/8760)⁸⁷⁶⁰</td><td><b>2.71813</b></td></tr>
         <tr><td>每秒钟一次</td><td>…</td><td><b>2.71828…</b></td></tr>
       </tbody>
-    </table>
+    </table></div>
     <p>结算得越来越频繁，数字确实在变大，但它<b>不会无限变大</b>——它卡在 2.71828... 附近，再细也就到这儿了。</p>
     <div class="def">
       <div class="def-h"><b>自然常数 e</b><i>Euler's number</i><span class="loc">数学常数，非论文内容</span></div>
@@ -120,14 +120,14 @@
     <div class="q">P(第 i 个) = e^(k·xi) ÷ (e^(k·x1) + e^(k·x2) + …)</div>
     <p>分子分母里，<b>每个 e 的指数都乘了同一个 k</b>。这相当于分子分母同乘一个数，比值不变？——不完全是，
       但结论是对的：<b>底数只相当于把所有分数统一缩放了一下，softmax 输出的比例关系完全不变。</b></p>
-    <table class="tb">
+    <div class="tw"><table class="tb">
       <thead><tr><th style="width:30%">用不同底数算同一组分数 [−1, 2, −0.5, 0.5]</th><th>得到的概率</th></tr></thead>
       <tbody>
         <tr><td>底数 2</td><td>3.7% / 73.8% / 6.1% / 16.5%</td></tr>
         <tr><td>底数 <b>e</b></td><td>3.7% / 73.8% / 6.1% / 16.5%</td></tr>
         <tr><td>底数 10</td><td>3.7% / 73.8% / 6.1% / 16.5%</td></tr>
       </tbody>
-    </table>
+    </table></div>
     <div class="note">
       <p><b>结论：</b>"为什么用 e"这个问题，在 softmax 这个场景里其实<b>不重要</b>——用 2、用 10、用 e 算出来的概率一模一样。
         大家统一用 e，只是因为求导方便、和交叉熵的 log 正好抵消、写论文时约定俗成。真正的关键在于"<b>用指数</b>"这件事，
@@ -142,17 +142,17 @@
     <p>回到原始问题。我们手上有一组分数（相似度、logits，随便叫），可能有正有负、大小悬殊。
       要把它变成"加起来等于 1 的比例"，需要满足三件事：</p>
 
-    <table class="tb">
+    <div class="tw"><table class="tb">
       <thead><tr><th style="width:26%">需求</th><th style="width:30%">为什么需要</th><th>指数函数怎么满足</th></tr></thead>
       <tbody>
         <tr><td><b>① 必须是正数</b></td><td>分数可能是 −3.5，但"概率 −35%"没有意义</td><td><code>eˣ</code> 对任何 x 都大于 0，负数的结果也是正的小数（如 e⁻³ = 0.0498）</td></tr>
         <tr><td><b>② 不能改变大小顺序</b></td><td>原来分数最高的词，变成概率后还应该是最高的</td><td><code>eˣ</code> 是单调递增的：x 大，eˣ 一定大</td></tr>
         <tr><td><b>③ 要拉大差距</b></td><td>最相关的词应该拿到明显更大的份额，而不是大家平均分</td><td>分数差 1，结果差 2.7 倍；差 3，差 20 倍</td></tr>
       </tbody>
-    </table>
+    </table></div>
 
     <p>试试别的函数，看哪里不合：</p>
-    <table class="tb">
+    <div class="tw"><table class="tb">
       <thead><tr><th style="width:22%">候选</th><th style="width:16%">正数？</th><th style="width:20%">保序？</th><th>问题</th></tr></thead>
       <tbody>
         <tr><td>直接除以总和</td><td>✗</td><td>✓</td><td>负分直接变成负概率，且负数总和可能为 0，除不了</td></tr>
@@ -161,7 +161,7 @@
         <tr><td>平方</td><td>✓</td><td>✗（负数时）</td><td>−3 的平方是 9，比 −1 的平方 1 大，顺序反了</td></tr>
         <tr><td><b>指数</b></td><td>✓</td><td>✓</td><td><b>三项全满足</b></td></tr>
       </tbody>
-    </table>
+    </table></div>
     <p>所以不是"数学家偏爱 e"，而是<b>指数这个形状恰好同时满足三个硬需求</b>。用底数 2 也能满足，
       只是大家约定用 e。</p>
   </div>
@@ -234,7 +234,7 @@
     <h3>为什么损失要用 −log</h3>
     <p>因为要衡量"模型给正确答案的把握有多差"，而 0 到 1 之间的概率直接把差距拉平了：0.9 和 0.1 看起来只差 0.8，
       但"几乎确定"和"几乎排除"是天壤之别。</p>
-    <table class="tb">
+    <div class="tw"><table class="tb">
       <thead><tr><th style="width:26%">模型给正确答案的概率</th><th style="width:24%">−ln(P)</th><th>解读</th></tr></thead>
       <tbody>
         <tr><td>1.00</td><td><b>0</b></td><td>完全确定且正确，零惩罚</td></tr>
@@ -243,7 +243,7 @@
         <tr><td>0.10</td><td><b>2.303</b></td><td>几乎排除了正确答案，重罚</td></tr>
         <tr><td>0.01</td><td><b>4.605</b></td><td>完全排除了正确答案，极重罚</td></tr>
       </tbody>
-    </table>
+    </table></div>
     <p>概率从 0.9 掉到 0.1（差 9 倍），损失从 0.1 涨到 2.3（差 22 倍）。<b>log 把"把握变小"放大成了"惩罚变大"。</b></p>
 
     <h3>三个用 −log 的技术理由</h3>

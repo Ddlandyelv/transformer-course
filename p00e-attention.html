@@ -56,14 +56,14 @@
     <p>最直接的想法：别管全句，每次只看相邻的 3 个词，把这一小段过一遍网络，再往后挪一格。</p>
     <p>这叫<b>卷积</b>（convolution），在图像和语音里非常成功。它解决了"长度不定"（窗口固定大小，滑动即可）和"参数量爆炸"（同一套权重反复用）。</p>
     <p>但它有个硬伤：<b>信息传不远</b>。</p>
-    <table class="tb">
+    <div class="tw"><table class="tb">
       <thead><tr><th style="width:26%">窗口大小</th><th style="width:30%">一层能覆盖的距离</th><th>第 1 个词影响第 30 个词需要几层</th></tr></thead>
       <tbody>
         <tr><td>3 个词</td><td>相邻 3 个</td><td><b>15 层</b></td></tr>
         <tr><td>5 个词</td><td>相邻 5 个</td><td>8 层</td></tr>
         <tr><td>11 个词</td><td>相邻 11 个</td><td>3 层</td></tr>
       </tbody>
-    </table>
+    </table></div>
     <p>层数就是成本。而且每传一层，信息就被"加工"一次，越传越模糊。句子一长，开头的词对结尾几乎没有影响。</p>
   </div>
 
@@ -128,7 +128,7 @@
   <h2><span class="n">6</span>于是 Transformer 的样子就定下来了</h2>
   <div class="sec">
     <p>把上面的推理串起来，模型必须包含这几样东西，缺一不可：</p>
-    <table class="tb">
+    <div class="tw"><table class="tb">
       <thead><tr><th style="width:26%">需求</th><th style="width:28%">对应部件</th><th>如果拿掉会怎样</th></tr></thead>
       <tbody>
         <tr><td>让词之间直接通信</td><td><b>自注意力</b></td><td>退化成全连接，距离一远就失效</td></tr>
@@ -138,7 +138,7 @@
         <tr><td>深层还能训得动</td><td><b>残差 + LayerNorm</b></td><td>堆到 6 层就梯度消失，训练不动</td></tr>
         <tr><td>输出成词的概率</td><td><b>线性层 + Softmax</b></td><td>只有向量，说不出是哪个词</td></tr>
       </tbody>
-    </table>
+    </table></div>
     <p>这六行，就是论文 §3 的全部内容。<b>每一行都不是"技巧"，而是"缺了就不行"的必要件</b>——
       这一点很重要，因为读论文时很容易把架构图上的每个方块都当成"设计选择"，实际上它们大多是被逼出来的。</p>
     <p>下一页面（0.5）会把这张表变成一张完整的地图，把每个名词钉在流程上，并且专门解释你卡住的那个 <b>FFN</b>。</p>
