@@ -90,7 +90,7 @@
     const u = new URL(location.href);
     if (!u.searchParams.has('code') && !u.searchParams.has('error')) return false;
     const provider = u.searchParams.get('provider');
-    if (provider !== 'workbuddy') { cleanUrl(); return false; }
+    if (provider && provider !== 'workbuddy') { cleanUrl(); return false; }
     try {
       await ensureCloud();
       const fn = cloud.auth.handleWorkBuddyCallback;
@@ -99,7 +99,7 @@
       cleanUrl();
       if (r && r.error) { lastError = r.error.message || '登录失败'; return false; }
       const ret = u.searchParams.get('ret');
-      if (ret && ret !== 'index' && r && r.data) {
+      if (ret && ret !== 'index.html' && ret !== 'index' && r && r.data) {
         const back = new URL(location.origin + '/' + ret);
         if (back.href !== location.href) { location.replace(back.href); return true; }
       }
@@ -176,8 +176,8 @@
     if (!SAME_ORIGIN) { lastError = '此版本不支持云端同步'; emit(); return; }
     try {
       await ensureCloud();
-      const cur = location.pathname.split('/').pop() || 'index';
-      const back = new URL(location.origin + '/?ret=' + encodeURIComponent(cur.replace(/\.html$/, '')));
+      const cur = location.pathname.split('/').pop() || 'index.html';
+      const back = new URL(location.origin + '/?ret=' + encodeURIComponent(cur));
       const { data, error } = await cloud.auth.signInWithOAuth({ provider: 'workbuddy', redirectTo: back.toString() });
       if (error) { lastError = error.message || '无法发起登录'; emit(); return; }
       location.assign(data.url);
