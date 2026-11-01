@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page="arch">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>编码器-解码器栈（§3.1） · Transformer 精读</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<main class="doc" id="doc">
+
+  <header class="lesson-head">
+    <div class="kicker"><span class="sec-no">07</span><span>正文</span><span>·</span><span>§3 · §3.1</span></div>
+    <h1>编码器-解码器栈：把零件装成机器</h1>
+    <p class="lede">这是全文唯一一处“总装图”。看懂这一页，你就知道后面每一页在讲图纸上的哪个方块。</p>
+    <div class="meta-row">
+      <span class="pill acc">前置：第 03、06 页</span>
+      <span class="pill">对应：§3、§3.1</span>
+      <span class="pill">约 <b>22</b> 分钟</span>
+    </div>
+  </header>
+
+  <div class="whybox">
+    <div class="whybox-h">为什么学这一页</div>
+    <div class="whybox-g">
+      <div class="wide"><b>论文位置</b><span>§3.1</span></div>
+      <div><b>不学卡在哪</b><span>架构图看不懂，不知道数据从哪进、经过什么、从哪出。</span></div>
+      <div><b>它解决什么</b><span>这是全论文的骨架，后面每一节（§3.2 到 §3.5）都只是在放大其中一个方块。</span></div>
+    </div>
+  </div>
+
+  <h2><span class="n">1</span>§3 开头两句话，定下了全部框架</h2>
+  <div class="sec">
+    <p>第一句：编码器把输入符号序列 (x₁…x<sub>n</sub>) 映射成连续表示 z = (z₁…z<sub>n</sub>)。
+      第二句：解码器根据 z，逐个生成输出序列 (y₁…y<sub>m</sub>)。</p>
+    <p>注意 <b>n 和 m 不一样</b>——输入输出长度可以不同，这正是翻译任务的形态。
+      也注意 z 有 n 个向量，不是一个。这一点是理解交叉注意力的前提。</p>
+
+    <div class="def">
+      <div class="def-h"><b>自回归</b><i>auto-regressive</i><span class="loc">§3 第 1 段；§3.2.3</span></div>
+      <p><b>是什么：</b>生成第 t 个词时，把前面已经生成的 t−1 个词当作输入。自己的输出变成自己的输入。</p>
+      <p><b>为什么必须这样：</b>翻译没有“一次性输出整句”的机制。模型每一步只产出“下一个词的概率分布”，
+        必须选一个、接上去、再算下一步。</p>
+      <p><b>代价：</b>推理无法并行——生成 20 个词就要跑 20 次前向。这与训练时的高并行形成鲜明对比。</p>
+      <div class="x">易错：训练时看起来是“整句并行”，但那是靠<b>掩码</b>伪装出来的（每步都只允许看左边）。
+        推理时没有正确答案可喂，只能一步一步来。</div>
+    </div>
+  </div>
+
+  <h2><span class="n">2</span>编码器：6 个相同的层</h2>
+  <div class="sec">
+    <p>原文：“The encoder is composed of a stack of N = 6 identical layers.”
+      <b>identical</b> 是关键词：结构相同，但参数<b>不共享</b>，6 层各有一套。</p>
+
+    <div class="flow" style="margin-top:16px">
+      <div class="fn on"><b>输入</b>n×512</div>
+      <div class="fa">→</div>
+      <div class="fn on"><b>① 多头自注意力</b>看全句</div>
+      <div class="fa">→</div>
+      <div class="fn on"><b>Add &amp; Norm</b>残差+归一</div>
+      <div class="fa">→</div>
+      <div class="fn on"><b>② 前馈网络</b>逐位置</div>
+      <div class="fa">→</div>
+      <div class="fn on"><b>Add &amp; Norm</b>输出仍是 512</div>
+    </div>
+    <p style="font-size:12.5px;color:var(--ink-3);margin-top:8px">↑ 这是一层的内部结构，整体重复 6 次。两个子层各自带一个残差与层归一化。</p>
+
+    <div class="def">
+      <div class="def-h"><b>子层</b><i>sub-layer</i><span class="loc">§3.1</span></div>
+      <p><b>是什么：</b>编码器一层里的一个功能块。编码器每层 2 个子层（自注意力、前馈网络），解码器每层 3 个（多一个交叉注意力）。</p>
+      <p><b>为什么按“子层”组织：</b>每个子层外面都套同一套 <code>LayerNorm(x + Sublayer(x))</code>，
+        所以子层可以不关心输入输出维度——只要保证输出是 512 维，就能接回去。</p>
+      <div class="x">易错：残差不是“把输入加到输出上就完了”，顺序是<b>先加、后归一化</b>。顺序反过来（Pre-LN）是后来的改进，效果更稳，但不是这篇论文的做法。</div>
+    </div>
+
+    <div class="op">
+      <div class="op-h"><span class="i">1</span>数据穿过一层编码器<span class="tg">5 步</span></div>
+      <div class="op-b">
+        <dl class="op-f"><dt>输入</dt><dd>X，形状 n×512（n 个词，每个 512 维）</dd></dl>
+        <dl class="op-f"><dt>条件</dt><dd>进入编码器前，已经做过“词嵌入 + 位置编码”相加（第 12、13 页）</dd></dl>
+        <dl class="op-f"><dt>步骤 1</dt><dd>多头自注意力：X → 注意力输出 A，形状仍是 n×512</dd></dl>
+        <dl class="op-f"><dt>步骤 2</dt><dd>残差 + 归一化：<code>X₁ = LayerNorm(X + A)</code>，形状不变</dd></dl>
+        <dl class="op-f"><dt>步骤 3</dt><dd>前馈网络：对 X₁ 的<b>每一行</b>独立做 512→2048→512，得到 F</dd></dl>
+        <dl class="op-f"><dt>步骤 4</dt><dd>再残差 + 归一化：<code>X₂ = LayerNorm(X₁ + F)</code></dd></dl>
+        <dl class="op-f"><dt>结果</dt><dd>X₂，形状 n×512。形状与输入完全相同，所以可以原样喂给下一层</dd></dl>
+        <dl class="op-f err"><dt>易错</dt><dd>① 以为 6 层共享参数（不共享）；② 以为 FFN 会跨位置混合（不会，逐行独立）；
+          ③ 忘了残差要求形状一致——这就是为什么 d<sub>model</sub> 必须全程 512。</dd></dl>
+      </div>
+    </div>
+  </div>
+
+  <h2><span class="n">3</span>解码器：多了一个子层</h2>
+  <div class="sec">
+    <p>原文：“In addition to the two sub-layers in each encoder layer, the decoder inserts a third sub-layer,
+      which performs multi-head attention over the output of the encoder stack.”</p>
+    <p>三个子层依次是：<b>掩码自注意力</b>（看自己已生成的部分）→ <b>交叉注意力</b>（看编码器输出）→ <b>前馈网络</b>。</p>
+
+    <div class="tw">
+      <table class="tb">
+        <thead><tr><th>子层</th><th>Q 来自</th><th>K、V 来自</th><th>作用</th></tr></thead>
+        <tbody>
+          <tr><td>① 掩码自注意力</td><td>解码器当前层</td><td>解码器当前层</td><td>理解“我已经写了什么”，且不能看未来</td></tr>
+          <tr><td>② 交叉注意力</td><td>解码器上一层输出</td><td><b>编码器最终输出 z</b></td><td>让译文的每个位置回看原文</td></tr>
+          <tr><td>③ 前馈网络</td><td colspan="2">自身，逐位置</td><td>加工每个位置的特征</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>“输出右移一位”（offset by one）</h3>
+    <p>原文：“the output embeddings are offset by one position”，配合掩码，
+      “ensures that the predictions for position i can depend only on the known outputs at positions less than i.”</p>
+    <p>具体做法：要预测 y₁、y₂、y₃，解码器的输入就是 <code>&lt;sos&gt;, y₁, y₂</code>——整体右移一格，
+      第一位放起始符。这样第 i 个位置的输入恰好是“前 i−1 个已知输出”，与推理时的情形一致。</p>
+    <div class="note warn">
+      <p><b>这是训练与推理能对上的关键设计。</b>如果没有右移，第 i 个位置看到的就是 y<sub>i</sub> 自己——直接抄答案，
+        模型什么也学不到。右移 + 掩码，两者缺一不可。</p>
+    </div>
+  </div>
+
+  <h2><span class="n">4</span>残差与层归一化：为什么 6 层能训起来</h2>
+  <div class="sec">
+    <div class="def">
+      <div class="def-h"><b>残差连接</b><i>residual connection</i><span class="loc">§3.1</span></div>
+      <p><b>是什么：</b><code>y = x + Sublayer(x)</code>。把子层的输入原样加到它的输出上。</p>
+      <p><b>为什么需要：</b>两个原因。① <b>梯度</b>：反向传播时，加法把梯度原样传回，不必穿过子层，
+        深层网络不再梯度消失。② <b>信息</b>：子层只需要学“增量”，不必从零重建，学起来更容易。</p>
+      <p><b>硬性前提：</b>x 与 Sublayer(x) 的形状必须完全相同。这就是为什么全模型所有子层都输出 512 维。</p>
+      <div class="x">易错：残差不是“短路”，它和子层输出是<b>相加</b>，两条路的信息都保留。也因此残差流（residual stream）会越积越“厚”，
+        后来的可解释性研究就是沿着这条流做分析的。</div>
+    </div>
+
+    <div class="def">
+      <div class="def-h"><b>层归一化</b><i>layer normalization</i><span class="loc">§3.1</span></div>
+      <p><b>是什么：</b>对<b>单个位置</b>的 512 个数值做标准化：减均值、除标准差，再用两个可学习参数缩放平移。</p>
+      <p><b>为什么不用 BatchNorm：</b>批归一化依赖“同一批里其他样本”的统计量，而序列长度可变、批次又常按长度分桶，
+        统计量不稳定；推理时还要维护滑动平均。层归一化只看当前样本自己，与批无关，天然适配变长序列。</p>
+      <p><b>效果：</b>把每层输入拉回稳定的数值范围，避免深层的激活值越走越偏。</p>
+      <div class="x">易错：LayerNorm 是跨<b>特征维</b>（512 那一维）归一化，不是跨序列位置。搞反了会把不同词的信息混在一起。</div>
+    </div>
+
+    <p>论文的写法是 <code>LayerNorm(x + Sublayer(x))</code>，即“先残差、后归一化”，学界称作 <b>Post-LN</b>。
+      它有个副作用：残差流没有被归一化，层数一多数值容易变大，所以训练时对 warmup 特别敏感。
+      后来的 GPT-2、LLaMA 都改成了 <b>Pre-LN</b>（先归一化再进子层），稳定性更好，但<b>这不是本文的设定</b>。</p>
+  </div>
+
+  <h2><span class="n">5</span>几个必须记住的尺寸</h2>
+  <div class="tw">
+    <table class="tb">
+      <thead><tr><th>符号</th><th>base 模型</th><th>big 模型</th><th>含义</th></tr></thead>
+      <tbody>
+        <tr><td><b>N</b></td><td class="num">6</td><td class="num">6</td><td>编码器/解码器各堆几层</td></tr>
+        <tr><td><b>d<sub>model</sub></b></td><td class="num">512</td><td class="num">1024</td><td>模型内部统一宽度</td></tr>
+        <tr><td><b>d<sub>ff</sub></b></td><td class="num">2048</td><td class="num">4096</td><td>FFN 中间层宽度（4×）</td></tr>
+        <tr><td><b>h</b></td><td class="num">8</td><td class="num">16</td><td>注意力头数</td></tr>
+        <tr><td><b>d<sub>k</sub> = d<sub>v</sub></b></td><td class="num">64</td><td class="num">64</td><td>每头的维度（= d<sub>model</sub>/h）</td></tr>
+        <tr><td><b>P<sub>drop</sub></b></td><td class="num">0.1</td><td class="num">0.3</td><td>dropout 比例（英法任务用 0.1）</td></tr>
+        <tr><td><b>参数量</b></td><td class="num">65M</td><td class="num">213M</td><td>可学习参数总数</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p style="font-size:12.5px;color:var(--ink-3)">数据来源：表 3（Table 3, “Variations on the Transformer architecture”）。</p>
+
+  <div class="summary">
+    <h3>本页要点</h3>
+    <ol>
+      <li>编码器 n 个向量进、n 个向量出；解码器逐个生成，长度可以不同。</li>
+      <li>编码器每层 2 个子层，解码器每层 3 个（多一个交叉注意力）；6 层结构相同、参数独立。</li>
+      <li>每个子层都是 <code>LayerNorm(x + Sublayer(x))</code>：先残差后归一化（Post-LN）。</li>
+      <li>残差要求形状一致，因此 d<sub>model</sub> 全程保持 512（big 为 1024）。</li>
+      <li>输出右移一位 + 掩码，保证“预测第 i 个位置时只能看到前 i−1 个已知输出”。</li>
+    </ol>
+  </div>
+
+  <h2><span class="n">6</span>自测</h2>
+  <div class="quiz">
+    <div class="qz">
+      <div class="q"><i>Q1</i>解码器比编码器多的那个子层，它的 K 和 V 来自哪里？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>解码器上一层的输出</span></button>
+        <button class="opt" data-ok="1"><i>B</i><span>编码器栈的最终输出</span></button>
+        <button class="opt"><i>C</i><span>输入词嵌入</span></button>
+      </div>
+      <div class="ex">交叉注意力：Q 来自解码器（我在找什么），K/V 来自编码器输出（原文有什么）。这是唯一的跨序列通道。</div>
+    </div>
+    <div class="qz">
+      <div class="q"><i>Q2</i>为什么所有子层的输出都必须是 512 维？</div>
+      <div class="opts">
+        <button class="opt" data-ok="1"><i>A</i><span>因为要做残差相加，形状必须一致</span></button>
+        <button class="opt"><i>B</i><span>因为 GPU 只支持 512 维</span></button>
+        <button class="opt"><i>C</i><span>因为位置编码是 512 维</span></button>
+      </div>
+      <div class="ex">x + Sublayer(x) 要求两者形状相同。这也是为什么 d_model 是整个架构的“主尺度”，多头、FFN 都要回到它。</div>
+    </div>
+    <div class="qz">
+      <div class="q"><i>Q3</i>“输出右移一位”的作用是？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>让序列变长一位，方便补齐</span></button>
+        <button class="opt" data-correct="1" data-ok="1"><i>B</i><span>让第 i 个位置只能看到前 i−1 个已生成的词，与推理时一致</span></button>
+        <button class="opt"><i>C</i><span>为了和位置编码对齐</span></button>
+      </div>
+      <div class="ex">右移 + 掩码共同保证“不许看未来”。少了任一个，训练时模型都会抄答案。</div>
+    </div>
+  </div>
+
+  <div class="cite">
+    <b>原文出处</b>
+    §3 Model Architecture（编码器-解码器、自回归）；§3.1 Encoder and Decoder Stacks（N=6、两个/三个子层、
+    LayerNorm(x+Sublayer(x))、d<sub>model</sub>=512、右移一位与掩码）；尺寸数据见表 3。
+  </div>
+
+  <div id="termIndex"></div>
+</main>
+<script src="assets/course.js"></script>
+</body>
+</html>

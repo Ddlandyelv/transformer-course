@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page="nn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>神经网络与训练 · Transformer 精读</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<main class="doc" id="doc">
+
+  <header class="lesson-head">
+    <div class="kicker"><span class="sec-no">02</span><span>前置知识</span><span>·</span><span>NEURAL NET</span></div>
+    <h1>神经网络与训练</h1>
+    <p class="lede">Transformer 是一个神经网络。它的“学习”不是推理，而是<b>反复试错、微调几百万个数字</b>。
+      这一页讲清楚：参数是什么、预测怎么算、错在哪、怎么改。</p>
+    <div class="meta-row">
+      <span class="pill acc">前置：第 01 页</span>
+      <span class="pill">用于：§3.3 前馈网络、§5 训练</span>
+      <span class="pill">约 <b>25</b> 分钟</span>
+    </div>
+  </header>
+
+  <div class="whybox">
+    <div class="whybox-h">为什么学这一页</div>
+    <div class="whybox-g">
+      <div class="wide"><b>论文位置</b><span>§3.1 子层结构；§3.3 FFN；§5 训练</span></div>
+      <div><b>不学卡在哪</b><span>不知道“层”是什么；看不懂残差、LayerNorm 为什么必须加。</span></div>
+      <div><b>它解决什么</b><span>Transformer 就是神经网络的一种，不懂训练就不知道那 6500 万个数字从哪来。</span></div>
+    </div>
+  </div>
+
+  <h2><span class="n">1</span>神经网络 = 一堆可调的数字 + 固定的运算顺序</h2>
+  <div class="sec">
+    <p>先建立一个最朴素的心智模型：一个训练好的神经网络，就是<b>几亿个数字</b>（叫参数）加上<b>一套固定的计算流程</b>。
+      给同样的输入，它永远给出同样的输出；训练就是把这些数字调到“输出尽量对”的位置。</p>
+    <p>Transformer base 模型有大约 <b>6500 万</b>个这样的数字。听起来很多，但它们的组织方式只有两种：
+      <b>线性层</b>（矩阵乘法）和<b>归一化/激活</b>（逐元素运算）。理解了这两种，就理解了整个模型的骨架。</p>
+  </div>
+
+  <h2><span class="n">2</span>线性层：模型里最基础的加工单元</h2>
+  <div class="sec">
+    <div class="def">
+      <div class="def-h"><b>线性层 / 全连接层</b><i>linear / dense layer</i><span class="loc">§3.3 式(2)</span></div>
+      <p><b>是什么：</b><code>y = xW + b</code>。输入一个向量 x，乘一个矩阵 W（权重），加一个向量 b（偏置），得到输出向量 y。</p>
+      <p><b>形状：</b>若 x 是 512 维、y 是 2048 维，则 W 是 512×2048、b 是 2048 维。
+        <b>W 的每一列可以理解为“一个输出特征的配方”</b>。</p>
+      <p><b>为什么需要：</b>它负责“换表示”。把 512 维的通用词向量，变成 2048 维的中间特征，
+        或者变回 512 维。整个模型里绝大多数参数都在这些矩阵里。</p>
+      <div class="x">易错：线性层不会改变“线性关系”。两层线性层叠起来 <code>(xW₁)W₂ = x(W₁W₂)</code>，
+        仍然等价于一层。所以层与层之间<b>必须</b>插入非线性（下面就要讲）。</div>
+    </div>
+  </div>
+
+  <h2><span class="n">3</span>激活函数：给模型“弯折”的能力</h2>
+  <div class="sec">
+    <div class="def">
+      <div class="def-h"><b>激活函数</b><i>activation function</i><span class="loc">§3.3</span></div>
+      <p><b>是什么：</b>在每个线性层之后，对每个数字单独做一次非线性变换。它不改维度，只改数值。</p>
+      <p><b>为什么需要：</b>没有它，无论堆多少层，整体仍然是一个线性函数——线性函数只能画直线，
+        学不会“如果…就…”这类弯弯绕的逻辑。非线性是深度网络表达能力的来源。</p>
+      <p><b>论文用的是什么：</b>ReLU，即 <code>max(0, x)</code>。见式 (2)。</p>
+      <div class="x">易错：激活函数是<b>逐元素</b>的，不是矩阵运算，不会混合不同维度的信息。
+        混合维度信息是线性层（矩阵乘法）的职责。</div>
+    </div>
+
+    <div class="def">
+      <div class="def-h"><b>ReLU</b><i>rectified linear unit</i><span class="loc">§3.3 式(2)</span></div>
+      <p><b>是什么：</b><code>ReLU(x) = max(0, x)</code>。负数一律变 0，正数原样通过。</p>
+      <p><b>为什么用它：</b>计算极便宜（一次比较）；不会像 sigmoid 那样在两端“饱和”导致梯度消失；
+        输出有一半是 0，天然稀疏。</p>
+      <p><b>直观理解：</b>它像一排开关，负信号被关掉，正信号通过。每个神经元因此变成一个“有条件的特征探测器”。</p>
+      <div class="x">易错：ReLU 在负数区梯度为 0，如果某个神经元长期收到负输入，它可能“死掉”（永远输出 0）。
+        这是 Transformer 之后改用 GELU 等平滑激活的原因之一。</div>
+    </div>
+  </div>
+
+  <h2><span class="n">4</span>前向传播：把输入变成预测</h2>
+  <div class="sec">
+    <div class="op">
+      <div class="op-h"><span class="i">1</span>一次完整的前向传播<span class="tg">以 FFN 为例</span></div>
+      <div class="op-b">
+        <dl class="op-f"><dt>输入</dt><dd>一个 512 维向量 x（某个词在某一层的表示）</dd></dl>
+        <dl class="op-f"><dt>条件</dt><dd>所有参数已初始化（训练开始时随机，推理时已训练好）</dd></dl>
+        <dl class="op-f"><dt>步骤 1</dt><dd>第一次线性变换：<code>h = xW₁ + b₁</code>，512 维 → <b>2048 维</b>（升维）</dd></dl>
+        <dl class="op-f"><dt>步骤 2</dt><dd>激活：<code>h' = max(0, h)</code>，负数清零，维度仍是 2048</dd></dl>
+        <dl class="op-f"><dt>步骤 3</dt><dd>第二次线性变换：<code>y = h'W₂ + b₂</code>，2048 维 → <b>512 维</b>（降回）</dd></dl>
+        <dl class="op-f"><dt>结果</dt><dd>一个 512 维输出，形状与输入完全一致——这样才能做残差相加</dd></dl>
+        <dl class="op-f err"><dt>易错</dt><dd>① 忘记升维再降维的中间维度（d<sub>ff</sub>=2048 是 d<sub>model</sub> 的 4 倍，不是随便取的）；
+          ② 以为 FFN 会混合不同词的信息——它<b>只处理单个位置</b>，词与词的通信全靠注意力。</dd></dl>
+      </div>
+    </div>
+    <p>这正是论文 §3.3 的全部内容。之所以叫“<b>逐位置</b>前馈网络”（position-wise），
+      是因为它对序列里每个位置<b>独立地、用同一套参数</b>做这件事——第 1 个词和第 10 个词走的是同一个 W₁、W₂。</p>
+  </div>
+
+  <h2><span class="n">5</span>Softmax：把分数变成概率</h2>
+  <div class="sec">
+    <div class="def">
+      <div class="def-h"><b>Softmax</b><i>softmax</i><span class="loc">§3.2.1 式(1)；§3.4</span></div>
+      <p><b>是什么：</b>输入一组任意实数 z₁…zₙ，输出一组正数，且总和为 1：
+        <code>softmax(z)ᵢ = e^zᵢ / Σⱼ e^zⱼ</code>。</p>
+      <p><b>三个关键性质：</b>① 输出全为正，可当概率；② 总和为 1，可当百分比；
+        ③ 指数会<b>放大差距</b>——输入差 2，输出差约 7 倍。</p>
+      <p><b>在论文里出现两次：</b>一次在注意力里（把相似度变成权重），一次在输出层（把词分数变成词概率）。
+        <b>同一个函数，两种用途</b>，这是初学者最容易混淆的地方。</p>
+      <div class="x">易错：softmax 是<b>按行</b>做的，不是对整个矩阵做。注意力里每一行（一个词的分数）独立归一化，
+        所以“每行加起来等于 1”，而不是“整张表加起来等于 1”。</div>
+    </div>
+
+    <div class="demo" data-w="softmax"></div>
+
+    <h3>先补一句：e 是什么，它为什么会突然冒出来</h3>
+    <p><code>e</code> 是一个数学常数，约等于 <b>2.718</b>，和 π 一样是无理数。它出现在这里不是故意为难人：
+      凡是“增长速度与当前大小成正比”的现象——复利、细菌繁殖、放射衰变——算到最后都会落到这个数上。</p>
+    <p>但这里真正重要的是“<b>要不要取指数</b>”这个动作，<b>而不是底数选谁</b>。换成 2、换成 10，
+      softmax 的输出<b>完全一样</b>，因为归一化会把这个差别约掉。用 e 只是数学惯例，求导和取对数时最省事。</p>
+    <p style="font-size:12.8px;color:var(--ink-3)">完整的来历（从复利推到这个数）、“为什么不能用别的函数”的逐一排除、
+      以及 softmax 的逐步手算，都在 <a href="p00c-exp.html">第 0.3 页 · e 和 log</a>。这里只留结论。</p>
+
+    <h3>为什么必须“取指数”</h3>
+    <p>我们手上有几个分数，可能有正有负、大小悬殊，要变成“加起来等于 1 的比例”。
+      这件事有三个硬需求，只有指数这个形状能同时满足：</p>
+    <table class="tb">
+      <thead><tr><th style="width:24%">需求</th><th style="width:30%">不满足会怎样</th><th>指数怎么解决</th></tr></thead>
+      <tbody>
+        <tr><td><b>结果必须是正数</b></td><td>分数 −3.5 会变成“负概率”</td><td><code>eˣ</code> 恒大于 0，负分也给一个正的小数</td></tr>
+        <tr><td><b>不能打乱大小顺序</b></td><td>最相关的词反而拿到最小份额</td><td><code>eˣ</code> 单调递增，分数大的结果一定大</td></tr>
+        <tr><td><b>要拉大差距</b></td><td>所有权重接近平均，注意力失去意义</td><td>分数差 1 放大成 2.7 倍，差 3 放大成 20 倍</td></tr>
+      </tbody>
+    </table>
+    <p>试过别的函数就知道为什么不行：直接除以总和，负分会变负概率；先取绝对值，−5 和 +5 会变成同一个数；
+      加常数平移，差距一点没放大；平方，负数会反过来超过正数。<b>指数是唯一三项全过的。</b></p>
+    <p>代价是：如果输入数值很大（比如点积结果到了 60），softmax 会完全饱和——
+      最大的那个接近 1，其余接近 0，梯度几乎消失。这正是论文要除以 √d<sub>k</sub> 的原因，详见第 08 页。</p>
+  </div>
+
+  <h2><span class="n">6</span>损失、梯度与反向传播</h2>
+  <div class="sec">
+    <div class="def">
+      <div class="def-h"><b>损失函数</b><i>loss function</i><span class="loc">§5 训练目标</span></div>
+      <p><b>是什么：</b>一个数字，衡量“模型这次预测得有多差”。翻译任务常用<b>交叉熵</b>：
+        <code>loss = −log P(正确词)</code>。正确词的概率是 0.9，损失约 0.1；概率是 0.01，损失约 4.6。</p>
+      <p><b>为什么需要：</b>它把“好/坏”变成一个可以求导的数。没有它，就无法知道该往哪个方向调参数。</p>
+      <div class="x">易错：损失小不等于翻译好。损失是逐词概率，BLEU 看整句质量。两者相关但不等价（见第 16 页）。</div>
+    </div>
+
+    <div class="def">
+      <div class="def-h"><b>梯度</b><i>gradient</i><span class="loc">§5.3 优化器</span></div>
+      <p><b>是什么：</b>损失对每个参数的偏导数。它回答一个问题：<b>把这个参数往正方向挪一点点，损失会变大还是变小？变多少？</b></p>
+      <p><b>怎么用：</b>沿着梯度的<b>反方向</b>挪，损失就会下降。挪多少由学习率决定：
+        <code>参数 ← 参数 − 学习率 × 梯度</code>。</p>
+      <div class="x">易错：梯度指向“上升最快”的方向，所以要<b>减</b>而不是加。符号搞反会让损失越训越大。</div>
+    </div>
+
+    <div class="def">
+      <div class="def-h"><b>反向传播</b><i>backpropagation</i><span class="loc">§5；§3.1 残差的意义</span></div>
+      <p><b>是什么：</b>从损失出发，用链式法则把梯度一层层往回传，算出每个参数的梯度。</p>
+      <p><b>为什么和 Transformer 有关：</b>层数一多，梯度每穿过一层就可能缩小一点，
+        传到底层时已经接近 0（<b>梯度消失</b>），底层就学不动。
+        论文 §3.1 的<b>残差连接</b>正是为此：给梯度开一条不经过子层的直通路径。</p>
+      <div class="x">易错：反向传播不是“重新算一遍前向”，它是复用前向的中间结果反向求导。所以显存占用主要由前向的中间激活决定。</div>
+    </div>
+  </div>
+
+  <h2><span class="n">7</span>训练循环：四步反复做</h2>
+  <div class="sec">
+    <div class="op">
+      <div class="op-h"><span class="i">2</span>一个训练步（training step）<span class="tg">循环执行</span></div>
+      <div class="op-b">
+        <dl class="op-f"><dt>输入</dt><dd>一个批次（batch）的样本，例如约 25000 个源词元 + 25000 个目标词元（§5.1）</dd></dl>
+        <dl class="op-f"><dt>条件</dt><dd>参数已初始化；优化器状态已建立；学习率由调度器给出</dd></dl>
+        <dl class="op-f"><dt>步骤 1 前向</dt><dd>输入 → 编码器 → 解码器 → softmax → 每个位置一个词概率分布</dd></dl>
+        <dl class="op-f"><dt>步骤 2 算损失</dt><dd>与真实的下一个词比较，得到交叉熵损失（可对整个批次取平均）</dd></dl>
+        <dl class="op-f"><dt>步骤 3 反向</dt><dd>反向传播得到每个参数的梯度</dd></dl>
+        <dl class="op-f"><dt>步骤 4 更新</dt><dd>优化器（论文用 Adam）按梯度更新所有参数</dd></dl>
+        <dl class="op-f"><dt>结果</dt><dd>参数微小变化，损失（在训练集上）应当略微下降。重复 10 万次（base）或 30 万次（big）。</dd></dl>
+        <dl class="op-f err"><dt>易错</dt><dd>① 忘记<b>清零梯度</b>——多数框架会累加梯度，不清零等于用了好几步的和；
+          ② 学习率设太大导致损失震荡甚至变成 NaN；③ 训练集损失下降但验证集变差 = 过拟合，需要正则。</dd></dl>
+      </div>
+    </div>
+
+    <div class="def">
+      <div class="def-h"><b>学习率</b><i>learning rate</i><span class="loc">§5.3 式(3)</span></div>
+      <p><b>是什么：</b>每次更新参数时的步长。太大 → 一步跨过最优点、来回震荡；太小 → 收敛极慢、可能卡在局部。</p>
+      <p><b>论文的做法：</b>不用固定学习率，而是“先线性升高 4000 步（warmup），再按步数的平方根倒数下降”。见第 15 页。</p>
+      <div class="x">易错：warmup 不是可有可无的技巧。训练初期参数随机、梯度方向不可靠，直接用大学习率容易把模型带进坏区域。</div>
+    </div>
+
+    <div class="def">
+      <div class="def-h"><b>批次</b><i>batch</i><span class="loc">§5.1</span></div>
+      <p><b>是什么：</b>一次并行处理的一组样本。批次越大，梯度估计越稳、GPU 利用率越高，但显存占用越大。</p>
+      <p><b>论文的做法：</b>按句子长度分桶，每批约 25000 源词元 / 25000 目标词元——注意是<b>按词元数</b>凑批，不是按句子数。</p>
+      <div class="x">易错：批大小变了，学习率通常也要跟着调。论文的超参数是在特定批大小下调出来的，不能无脑照搬。</div>
+    </div>
+  </div>
+
+  <h2><span class="n">8</span>过拟合与正则化</h2>
+  <div class="sec">
+    <div class="def">
+      <div class="def-h"><b>过拟合</b><i>overfitting</i><span class="loc">§5.4</span></div>
+      <p><b>是什么：</b>模型把训练数据“背”下来了，在新数据上表现变差。典型信号：训练损失持续下降，验证损失开始上升。</p>
+      <p><b>为什么会发生：</b>参数太多、数据相对太少、训练太久。6500 万参数对 450 万句对，是有过拟合风险的。</p>
+      <div class="x">易错：训练损失低不代表模型好。看验证集/测试集才是判断标准。</div>
+    </div>
+
+    <div class="def">
+      <div class="def-h"><b>Dropout</b><i>dropout</i><span class="loc">§5.4</span></div>
+      <p><b>是什么：</b>训练时随机把一部分数值置零（论文比例 0.1），推理时关闭并按比例放大。</p>
+      <p><b>为什么有效：</b>每次训练看到的都是“残缺版”网络，模型不能依赖某几个固定通道，
+        被迫学出冗余、稳健的特征。可以理解为“同时训练很多个子网络的集成”。</p>
+      <div class="x">易错：忘记切换 train/eval 模式，推理时还在随机丢弃，结果会不稳定且偏小。</div>
+    </div>
+
+    <div class="note">
+      <p><b>和 Transformer 的关系：</b>论文在三个位置用了 dropout——每个子层输出加回主干之前、
+        词嵌入与位置编码相加之后。这两处正好是“信息汇聚点”，最容易被死记硬背。详见第 15 页。</p>
+    </div>
+  </div>
+
+  <div class="summary">
+    <h3>本页要点</h3>
+    <ol>
+      <li>神经网络 = 大量可学习参数 + 固定的运算流程；参数由训练得到。</li>
+      <li>线性层 <code>xW+b</code> 负责换表示；激活函数（ReLU）提供非线性，二者缺一不可。</li>
+      <li>前向传播算出预测，损失函数衡量差距，反向传播算出梯度，优化器按学习率更新参数。</li>
+      <li>Softmax 把任意分数变成和为 1 的概率；指数会放大差距，所以需要缩放（第 08 页）。</li>
+      <li>dropout 与标签平滑是论文用的两种主要正则手段，目的都是防止死记硬背。</li>
+    </ol>
+  </div>
+
+  <h2><span class="n">9</span>自测</h2>
+  <div class="quiz">
+    <div class="qz">
+      <div class="q"><i>Q1</i>如果把 Transformer 里所有的 ReLU 都删掉，会发生什么？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>模型变慢，但效果基本不变</span></button>
+        <button class="opt" data-ok="1"><i>B</i><span>整个模型退化成一个大线性函数，表达能力大幅下降</span></button>
+        <button class="opt"><i>C</i><span>只有输出层受影响</span></button>
+      </div>
+      <div class="ex">线性层叠线性层仍是线性层。注意力的加权平均本身也是线性的，因此 ReLU 是非线性的唯一来源，删掉后整个网络等价于一个线性变换。</div>
+    </div>
+    <div class="qz">
+      <div class="q"><i>Q2</i>训练时损失突然变成 NaN，最可能的原因不包括？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>学习率过大，参数一步跳出数值范围</span></button>
+        <button class="opt"><i>B</i><span>softmax 输入过大导致溢出</span></button>
+        <button class="opt" data-ok="1"><i>C</i><span>批次太大</span></button>
+      </div>
+      <div class="ex">批次大只会更慢、更吃显存，不会直接产生 NaN。NaN 通常来自数值爆炸（学习率过大、除零、log(0)）或梯度爆炸。</div>
+    </div>
+    <div class="qz">
+      <div class="q"><i>Q3</i>关于 softmax，下面哪个说法正确？</div>
+      <div class="opts">
+        <button class="opt" data-ok="1"><i>A</i><span>它按行归一化，一行内所有值相加为 1</span></button>
+        <button class="opt"><i>B</i><span>它把整张矩阵归一化，全表相加为 1</span></button>
+        <button class="opt"><i>C</i><span>它只用于输出层，不用于注意力</span></button>
+      </div>
+      <div class="ex">注意力里对分数矩阵的每一行做 softmax；输出层对词表维度做 softmax。两处都是“对一组数归一化”，只是作用的轴不同。</div>
+    </div>
+  </div>
+
+  <div class="cite">
+    <b>原文出处</b>
+    §3.3 Position-wise Feed-Forward Networks（式 2，ReLU、d<sub>ff</sub>=2048）；§3.4 Softmax 输出层；
+    §3.1 残差与层归一化；§5.1 批次与词元数；§5.3 Adam 与学习率；§5.4 dropout 与标签平滑。
+  </div>
+
+  <div id="termIndex"></div>
+</main>
+<script src="assets/course.js"></script>
+</body>
+</html>

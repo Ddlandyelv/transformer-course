@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page="ffn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>前馈网络（§3.3） · Transformer 精读</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<main class="doc" id="doc">
+
+  <header class="lesson-head">
+    <div class="kicker"><span class="sec-no">11</span><span>正文</span><span>·</span><span>§3.3</span></div>
+    <h1>逐位置前馈网络</h1>
+    <p class="lede">这一节只有两段，却占了模型<b>三分之二的参数</b>。它做的事极其朴素：对每个位置独立做两次线性变换，
+      中间夹一个 ReLU。但没有它，整个模型会退化成一个线性系统。</p>
+    <div class="meta-row">
+      <span class="pill acc">前置：<a href="p00b-neuron.html">0.2 一个神经元</a></span>
+      <span class="pill">对应：§3.3</span>
+      <span class="pill">约 <b>16</b> 分钟</span>
+    </div>
+  </header>
+
+  <div class="whybox">
+    <div class="whybox-h">为什么学这一页</div>
+    <div class="whybox-g">
+      <div class="wide"><b>论文位置</b><span>§3.3 式(2)</span></div>
+      <div><b>不学卡在哪</b><span>不知道 FFN 是什么；不知道为什么 512→2048→512；不知道为什么它占三分之二参数。</span></div>
+      <div><b>它解决什么</b><span>注意力负责词与词之间的横向通信，FFN 负责每个词自己的纵向加工，两者缺一不可。</span></div>
+    </div>
+  </div>
+
+  <div class="note">
+    <p><b>先给一句话答案，省得你一路猜：</b>FFN 就是第 0.2 页那种神经元，<b>叠成两层</b>——
+      先把 512 维拉宽到 2048 维，过一次 ReLU（负数归零），再压回 512 维。
+      名字叫"前馈网络"，其实里面只有两个矩阵和一次弯折，没有任何循环、没有注意力、没有跨词通信。</p>
+    <p>所以真正值得问的不是"FFN 是什么"，而是"<b>注意力都已经让词互相看过了，为什么还要来这么一下</b>"。
+      这一页的第 2 节讲它算什么，第 4 节讲它在整个架构里的分工。</p>
+  </div>
+
+  <h2><span class="n">1</span>原文说了什么</h2>
+  <div class="sec">
+    <div class="q">
+      “In addition to attention sub-layers, each of the layers in our encoder and decoder contains a fully connected
+      feed-forward network, which is applied to each position separately and identically. This consists of two linear
+      transformations with a ReLU activation in between.”
+    </div>
+    <div class="fm">
+      <span class="c">FFN</span>(<span class="v">x</span>) <span class="op">=</span>
+      max(0, <span class="v">xW</span><sub>1</sub> + <span class="v">b</span><sub>1</sub>)<span class="v">W</span><sub>2</sub> + <span class="v">b</span><sub>2</sub>
+      <span class="cap">式 (2)。输入输出 512 维，中间层 d<sub>ff</sub>=2048</span>
+    </div>
+
+    <div class="def">
+      <div class="def-h"><b>逐位置</b><i>position-wise</i><span class="loc">§3.3</span></div>
+      <p><b>是什么：</b>对序列里每个位置<b>分别</b>做同样的运算，位置之间不交流。第 1 个词和第 10 个词走的是同一套 W₁、W₂。</p>
+      <p><b>为什么这样设计：</b>如果 FFN 也跨位置混合，它就和注意力重复了。分工要清晰：<b>注意力负责横向通信，FFN 负责纵向加工</b>。</p>
+      <p><b>换个说法：</b>论文自己指出，这等价于两个核大小为 1 的卷积——因为 1×1 卷积本来就是“逐像素、不跨位置”。</p>
+      <div class="x">易错：position-wise 不等于“只处理一个位置”。它处理所有位置，只是每个位置<b>独立</b>、<b>共享参数</b>。</div>
+    </div>
+  </div>
+
+  <h2><span class="n">2</span>一次 FFN 到底算了什么</h2>
+  <div class="sec">
+    <div class="op">
+      <div class="op-h"><span class="i">1</span>单次前馈网络计算<span class="tg">3 步</span></div>
+      <div class="op-b">
+        <dl class="op-f"><dt>输入</dt><dd>一个 512 维向量 x（某个位置在某一层的表示）</dd></dl>
+        <dl class="op-f"><dt>条件</dt><dd>同一层内所有位置共用 W₁、W₂、b₁、b₂；不同层各有一套</dd></dl>
+        <dl class="op-f"><dt>步骤 1 升维</dt><dd><code>h = xW₁ + b₁</code>，512 → <b>2048</b>。W₁ 形状 512×2048</dd></dl>
+        <dl class="op-f"><dt>步骤 2 非线性</dt><dd><code>h' = max(0, h)</code>，负数清零，维度不变</dd></dl>
+        <dl class="op-f"><dt>步骤 3 降维</dt><dd><code>y = h'W₂ + b₂</code>，2048 → <b>512</b>。W₂ 形状 2048×512</dd></dl>
+        <dl class="op-f"><dt>结果</dt><dd>512 维输出，形状与输入相同，可直接接残差</dd></dl>
+        <dl class="op-f err"><dt>易错</dt><dd>① 把两个矩阵的方向搞反（W₁ 是 512×2048，不是 2048×512）；
+          ② 以为 ReLU 之后的 2048 维会保留下来——它只是中间结果，最终要压回 512；
+          ③ 以为不同位置会共享中间结果（不会，完全独立）。</dd></dl>
+      </div>
+    </div>
+
+    <h3>为什么先升后降</h3>
+    <p>把 512 维映射到 2048 维，相当于给每个位置提供 2048 个“特征探测器”；
+      ReLU 决定哪一些被激活；再压回 512 维，变成这一层要往下传的信息。</p>
+    <p>如果直接 512→512，模型能表达的非线性组合会少得多。4 倍扩张是实践中的经验值，
+      后来几乎所有大模型都沿用了这个比例（4×d<sub>model</sub>）。</p>
+    <div class="note">
+      <p><b>一个重要的直觉：</b>注意力做的是“把别的词的信息搬过来”，本质是<b>加权平均</b>——线性操作。
+        如果模型只有注意力，无论堆多少层，整体仍然是线性的，只能表达“词袋”级别的关系。
+        <b>FFN 里的 ReLU 是非线性的唯一来源。</b></p>
+    </div>
+  </div>
+
+  <h2><span class="n">3</span>参数量：为什么它占大头</h2>
+  <div class="sec">
+    <div class="tw">
+      <table class="tb">
+        <thead><tr><th>组件</th><th>矩阵形状</th><th>参数量</th><th>占比</th></tr></thead>
+        <tbody>
+          <tr><td>多头注意力（含 W<sup>O</sup>）</td><td class="num">4 × 512×512</td><td class="num">1.05 M</td><td class="num">33%</td></tr>
+          <tr><td>前馈网络</td><td class="num">512×2048 + 2048×512</td><td class="num">2.10 M</td><td class="num"><b>66%</b></td></tr>
+          <tr><td><b>一个编码器层合计</b></td><td class="num">—</td><td class="num"><b>3.15 M</b></td><td class="num">100%</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>解码器层还要再加一个交叉注意力（约 1.05 M）。把 6 层编码器 + 6 层解码器加起来，
+      再加上共享的词嵌入表（37000×512 ≈ 18.9 M），就大致得到 base 模型的 6500 万参数。</p>
+    <div class="note warn">
+      <p><b>一个反直觉的事实：</b>我们总把 Transformer 说成“注意力模型”，但从参数看，
+        它更像“前馈网络模型”。注意力负责路由信息，FFN 负责存储和处理知识。
+        后来的研究（如把 FFN 视作 key-value 记忆）正是从这个观察出发的。</p>
+    </div>
+  </div>
+
+  <h2><span class="n">4</span>FFN 在各层之间不共享</h2>
+  <div class="sec">
+    <p>原文特意补了一句：“While the linear transformations are the same across different positions,
+      they use different parameters from layer to layer.”</p>
+    <p>意思是：<b>同一层内</b>，所有位置共享同一套参数（这是 position-wise 的含义）；
+      <b>不同层之间</b>，参数完全独立。所以 6 层就有 6 套不同的 FFN，负责处理不同抽象层次的特征。</p>
+    <div class="note">
+      <p>这一点常被误解为“参数共享”。真正共享参数的例子是 ALBERT（层间共享）和 GPT 的输入/输出嵌入共享。
+        Transformer 原版只在<b>嵌入层与输出线性层</b>之间共享权重（§3.4），层与层之间不共享。</p>
+    </div>
+  </div>
+
+  <div class="summary">
+    <h3>本页要点</h3>
+    <ol>
+      <li>FFN = 线性 → ReLU → 线性，512→2048→512，对每个位置独立、同层共享参数。</li>
+      <li>它等价于两个核大小为 1 的卷积，不跨位置混合信息。</li>
+      <li>它是模型里<b>唯一的非线性来源</b>，也是参数量的主要部分（约 2/3）。</li>
+      <li>注意力负责“通信”，FFN 负责“加工”，两者分工明确。</li>
+      <li>不同层参数不共享；共享权重的做法在本文只出现在嵌入与输出层之间。</li>
+    </ol>
+  </div>
+
+  <h2><span class="n">5</span>自测</h2>
+  <div class="quiz">
+    <div class="qz">
+      <div class="q"><i>Q1</i>如果把 FFN 里的 ReLU 去掉，只留两个线性层，会怎样？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>没有区别，两个线性层本来就不一样</span></button>
+        <button class="opt" data-ok="1"><i>B</i><span>两个线性层合并成一个线性层，整个模型退化为线性系统</span></button>
+        <button class="opt"><i>C</i><span>训练变慢但效果不变</span></button>
+      </div>
+      <div class="ex">(xW₁)W₂ = x(W₁W₂)，矩阵乘法可结合。没有非线性，深度就失去意义。注意力本身也是线性的加权平均，所以 ReLU 是全模型唯一的非线性。</div>
+    </div>
+    <div class="qz">
+      <div class="q"><i>Q2</i>“position-wise” 的准确含义是？</div>
+      <div class="opts">
+        <button class="opt" data-ok="1"><i>A</i><span>对每个位置分别计算，位置之间不交换信息，且共享同一套参数</span></button>
+        <button class="opt"><i>B</i><span>只处理序列中的第一个位置</span></button>
+        <button class="opt"><i>C</i><span>每个位置有自己独立的一套参数</span></button>
+      </div>
+      <div class="ex">共享参数 + 独立计算。如果每个位置一套参数，参数量会随句子长度爆炸。</div>
+    </div>
+    <div class="qz">
+      <div class="q"><i>Q3</i>base 模型中，d<sub>ff</sub> 是多少？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>512</span></button>
+        <button class="opt" data-ok="1"><i>B</i><span>2048</span></button>
+        <button class="opt"><i>C</i><span>4096</span></button>
+      </div>
+      <div class="ex">base 是 2048（4×512），big 是 4096（4×1024）。见表 3。</div>
+    </div>
+  </div>
+
+  <div class="cite">
+    <b>原文出处</b>
+    §3.3 Position-wise Feed-Forward Networks（式 2、d<sub>model</sub>=512、d<sub>ff</sub>=2048、
+    “equivalent to two convolutions with kernel size 1”、层间参数不共享）；参数量与 d<sub>ff</sub> 见表 3。
+  </div>
+
+  <div id="termIndex"></div>
+</main>
+<script src="assets/course.js"></script>
+</body>
+</html>

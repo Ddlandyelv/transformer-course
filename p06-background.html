@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page="bg">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>背景（§2） · Transformer 精读</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<main class="doc" id="doc">
+
+  <header class="lesson-head">
+    <div class="kicker"><span class="sec-no">06</span><span>正文</span><span>·</span><span>§2 BACKGROUND</span></div>
+    <h1>背景：别人走到哪一步了</h1>
+    <p class="lede">§2 只有四段，却交代了三件事：同期对手在干什么、自注意力从哪来、以及本文凭什么算“第一个”。
+      这一节的每一句都在为 §3 的设计选择做辩护。</p>
+    <div class="meta-row">
+      <span class="pill acc">前置：第 03 页</span>
+      <span class="pill">对应：§2</span>
+      <span class="pill">约 <b>16</b> 分钟</span>
+    </div>
+  </header>
+
+  <div class="whybox">
+    <div class="whybox-h">为什么学这一页</div>
+    <div class="whybox-g">
+      <div class="wide"><b>论文位置</b><span>§2</span></div>
+      <div><b>不学卡在哪</b><span>CNN、自注意力、memory network 这些词混在一起，不知道各自在讲什么。</span></div>
+      <div><b>它解决什么</b><span>说明 Transformer 不是凭空发明，而是把已有零件（卷积、注意力、残差）重新组合。</span></div>
+    </div>
+  </div>
+
+  <h2><span class="n">1</span>同步出现的对手：卷积路线</h2>
+  <div class="sec">
+    <p>想摆脱 RNN 的不止 Google 一家。2016–2017 年有一批工作用<b>卷积</b>来并行处理序列，
+      代表是 Extended Neural GPU、ByteNet、ConvS2S。它们的共同思路是：卷积核在序列上滑动，
+      所有位置可以同时算，因此天然并行。</p>
+    <p>但卷积有个几何上的硬伤：<b>一层的卷积核只看得到邻居</b>。要让第 1 个词和第 50 个词产生联系，
+      就得堆很多层，或者用空洞卷积把感受野撑大。</p>
+
+    <div class="def">
+      <div class="def-h"><b>感受野</b><i>receptive field</i><span class="loc">§2 第 1 段（隐含）</span></div>
+      <p><b>是什么：</b>一个输出位置在原始输入上能“看到”的范围。卷积核大小为 k，一层就看到 k 个位置；
+        堆 L 层，感受野大约是 L×(k−1)+1。</p>
+      <p><b>为什么关键：</b>两个位置要被联系起来，必须落在彼此的感受野内。感受野扩张得越慢，需要的层数越多，
+        两个位置之间的“路径”就越长。</p>
+      <div class="x">易错：感受野 ≠ 路径长度。前者是“能看到多远”，后者是“信号要走几步”。§2 关心的是后者。</div>
+    </div>
+
+    <div class="def">
+      <div class="def-h"><b>路径长度</b><i>path length</i><span class="loc">§2 第 1 段；§4 表 1</span></div>
+      <p><b>是什么：</b>前向信号（或反向梯度）从一个位置传到另一个位置，必须经过的最少操作次数。</p>
+      <p><b>论文里的三个数：</b>卷积（ConvS2S）是 <b>O(n/k)</b> 线性；空洞卷积（ByteNet）是 <b>O(log<sub>k</sub> n)</b>；
+        自注意力是 <b>O(1)</b>。</p>
+      <p><b>为什么它决定学习难度：</b>路径越长，梯度回传时经过的非线性变换越多，越容易衰减；同时也越难“对准”两个位置。</p>
+      <div class="x">易错：路径短不代表一定学得好，但路径长一定更难学。这是 §4 论证的核心逻辑，不是充分条件。</div>
+    </div>
+
+    <div class="tw">
+      <table class="tb">
+        <thead><tr><th>模型</th><th>怎么并行</th><th>路径长度</th><th>短板</th></tr></thead>
+        <tbody>
+          <tr><td>RNN / LSTM</td><td>不能并行</td><td><b>O(n)</b></td><td>串行 + 长距离衰减</td></tr>
+          <tr><td>ConvS2S</td><td>卷积并行</td><td>O(n/k) 线性</td><td>层数随距离增长</td></tr>
+          <tr><td>ByteNet</td><td>空洞卷积并行</td><td>O(log<sub>k</sub> n) 对数</td><td>仍然不是常数</td></tr>
+          <tr><td><b>Transformer</b></td><td>注意力并行</td><td><b>O(1) 常数</b></td><td>计算量 O(n²·d)</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <h2><span class="n">2</span>作者自己承认的代价：分辨率被“平均”掉了</h2>
+  <div class="sec">
+    <p>这是 §2 里最容易被跳过、但最见功力的一句：</p>
+    <div class="q">
+      “In the Transformer this is reduced to a constant number of operations, albeit at the cost of reduced effective
+      resolution due to averaging attention-weighted positions, an effect we counteract with Multi-Head Attention.”
+    </div>
+    <p>翻译过来：路径长度确实降到了常数，<b>但代价是“有效分辨率”下降</b>——因为注意力把很多位置加权平均到一起，
+      细节被抹平了；这个副作用我们用<b>多头注意力</b>来抵消。</p>
+
+    <div class="def">
+      <div class="def-h"><b>有效分辨率</b><i>effective resolution</i><span class="loc">§2 第 1 段</span></div>
+      <p><b>是什么：</b>模型还能区分多细的差异。加权平均是一种“模糊”操作：把 10 个词按权重混成一个向量，
+        原来 10 个词各自的细节就被压缩成了一个。</p>
+      <p><b>类比：</b>把一张 10 个像素的图做平均模糊，变成 1 个像素——信息还在，但细节没了。</p>
+      <p><b>多头为什么能补救：</b>8 个头各自做一次平均，但关注的是不同的子空间、不同的关系。
+        等于“用 8 张不同角度的模糊照片拼回细节”，而不是只模糊一次。</p>
+      <div class="x">易错：多头不是“把同样的计算做 8 遍”。如果 8 个头学到的东西一样，就完全没有补救作用——训练会让它们分化，但这不是数学保证。</div>
+    </div>
+    <div class="note">
+      <p><b>这句话解释了第 09 页的存在。</b>如果只看 §3.2.2 的公式，多头像是“为了更强而堆料”；
+        回到 §2 才知道，它是有明确针对性的补丁：<b>修复单头平均带来的细节损失</b>。</p>
+    </div>
+  </div>
+
+  <h2><span class="n">3</span>自注意力不是新东西</h2>
+  <div class="sec">
+    <p>§2 第二段明确说：自注意力（也叫 intra-attention）早就在阅读理解、抽取式摘要、文本蕴含、
+      以及“学习与任务无关的句子表示”这些任务上被用过。</p>
+
+    <div class="def">
+      <div class="def-h"><b>自注意力</b><i>self-attention / intra-attention</i><span class="loc">§2 第 2 段；§3.2.3</span></div>
+      <p><b>是什么：</b>在<b>同一个序列内部</b>做注意力：Q、K、V 全部来自这一层自己的输入。</p>
+      <p><b>和普通注意力的区别：</b>普通注意力是“解码器看编码器”（跨两个序列）；自注意力是“句子看自己”。</p>
+      <p><b>作用：</b>让每个词直接和句子里所有词建立联系，一步到位，不依赖距离。</p>
+      <div class="x">易错：自注意力不是“自己看自己”。包括自己在内，它看的是<b>整个序列</b>，只是 Q/K/V 同源。</div>
+    </div>
+
+    <p>还有一条支线：<b>端到端记忆网络</b>（end-to-end memory networks）。它用“循环的注意力”而不是“循环的隐藏状态”，
+      在简单语言问答和语言建模上表现不错。论文把它列为思想近亲——都是“用注意力代替逐步循环”。</p>
+
+    <h3>那这篇论文凭什么算“第一个”</h3>
+    <p>原文的措辞非常克制：</p>
+    <div class="q">
+      “To the best of our knowledge, however, the Transformer is the first transduction model relying entirely on
+      self-attention to compute representations of its input and output without using sequence-aligned RNNs or convolution.”
+    </div>
+    <p>注意三个限定词：<b>to the best of our knowledge</b>（据我们所知）、<b>transduction model</b>（序列转换模型）、
+      <b>entirely</b>（完全）。自注意力本身不新，用它做辅助不新，
+      <b>把整个编码器和解码器都建立在自注意力上、一个循环单元都不留</b>——这是新的。</p>
+    <div class="note warn">
+      <p><b>学术写作的细节：</b>“first” 前面必带 “to the best of our knowledge”。这不是谦虚，是避免被审稿人打脸的行业惯例。
+        读论文时看到这种限定，说明作者对“首创性”是有分寸的。</p>
+    </div>
+  </div>
+
+  <h2><span class="n">4</span>§2 在全文中的作用</h2>
+  <div class="sec">
+    <p>把 §2 当成“参考文献综述”就浪费了。它实际做了三件事，每一件都直接支撑后面的设计：</p>
+    <ol>
+      <li><b>定义竞争标准。</b>把路径长度摆出来（卷积 log、循环线性），等于给自注意力预设了一个必须赢的赛道。</li>
+      <li><b>提前承认代价。</b>主动说出“平均会损失分辨率”，再用多头补上——这是审稿人最想挑的点，作者先答了。</li>
+      <li><b>划清首创边界。</b>承认自注意力有历史，只主张“完全基于它”这一条，把可攻击面缩到最小。</li>
+    </ol>
+  </div>
+
+  <div class="summary">
+    <h3>本页要点</h3>
+    <ol>
+      <li>同期对手（ConvS2S、ByteNet）用卷积换并行，但路径长度是 O(n/k) 或 O(log n)，仍不是常数。</li>
+      <li>自注意力的路径长度是 O(1)，代价是计算量 O(n²·d)。</li>
+      <li>单头注意力的加权平均会降低“有效分辨率”，多头是用来抵消这个副作用的手段。</li>
+      <li>自注意力此前已被用于阅读理解、摘要、蕴含等任务，本文的新意是“完全基于它”。</li>
+      <li>§2 的写作策略：预设赛道、主动认错、缩小主张，为 §3 铺路。</li>
+    </ol>
+  </div>
+
+  <h2><span class="n">5</span>自测</h2>
+  <div class="quiz">
+    <div class="qz">
+      <div class="q"><i>Q1</i>卷积模型（如 ByteNet）的路径长度是 O(log<sub>k</sub> n)，这个“log”是怎么来的？</div>
+      <div class="opts">
+        <button class="opt" data-ok="1"><i>A</i><span>空洞卷积每层把感受野扩大 k 倍，所以要覆盖 n 个位置只需约 log<sub>k</sub> n 层</span></button>
+        <button class="opt"><i>B</i><span>因为用了对数损失函数</span></button>
+        <button class="opt"><i>C</i><span>因为词表大小是对数增长的</span></button>
+      </div>
+      <div class="ex">感受野按 k 的层数次幂增长：k^L ≈ n，所以 L ≈ log_k n。层数就是路径长度。</div>
+    </div>
+    <div class="qz">
+      <div class="q"><i>Q2</i>§2 说自注意力“牺牲了有效分辨率”，具体指什么？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>模型的参数量变少了</span></button>
+        <button class="opt" data-ok="1"><i>B</i><span>多个位置被加权平均成一个向量，细节被抹平</span></button>
+        <button class="opt"><i>C</i><span>位置编码精度不够</span></button>
+      </div>
+      <div class="ex">加权求和本质是模糊。一个词的新表示是所有词的混合，原本各自独立的细节被压缩。多头通过“多组不同的混合方式”来找回细节。</div>
+    </div>
+    <div class="qz">
+      <div class="q"><i>Q3</i>论文主张的“第一”，边界是什么？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>第一个使用注意力机制的模型</span></button>
+        <button class="opt" data-ok="1"><i>B</i><span>第一个完全依赖自注意力、不用 RNN/CNN 的序列转换模型</span></button>
+        <button class="opt"><i>C</i><span>第一个做机器翻译的神经网络</span></button>
+      </div>
+      <div class="ex">注意原文的 “entirely” 和 “transduction model” 两个限定。用注意力做辅助、做记忆网络都更早。</div>
+    </div>
+  </div>
+
+  <div class="cite">
+    <b>原文出处</b>
+    §2 Background 全节（四段）。卷积模型：Extended Neural GPU、ByteNet、ConvS2S；
+    自注意力历史：阅读理解、抽取式摘要、文本蕴含、句子表示学习；记忆网络：end-to-end memory networks。
+    复杂度与路径长度的完整对比见 §4 表 1。
+  </div>
+
+  <div id="termIndex"></div>
+</main>
+<script src="assets/course.js"></script>
+</body>
+</html>

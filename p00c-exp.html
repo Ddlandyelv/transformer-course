@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page="start2b">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>e 和 log：为什么这里老是出现这两个东西 · Transformer 精读</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<main class="doc" id="doc">
+
+  <header class="lesson-head">
+    <div class="kicker"><span class="sec-no">0.3</span><span>第零幕 · 从零开始</span><span>·</span><span>EXP &amp; LOG</span></div>
+    <h1>e 和 log：为什么这里老是出现这两个东西</h1>
+    <p class="lede">看论文时最容易"卡住"的瞬间，往往不是某个概念太难，而是<b>一个符号没交代就上场了</b>。
+      <code>e</code> 就是最典型的一个：前面全是加减乘，突然蹦出 <code>e^2.0 = 7.389</code>。
+      这一页把它从头拆开——e 是什么、为什么非得是 e、softmax 到底在算什么，以及你屏幕上那
+      3.7% / 73.8% 是怎么来的。</p>
+    <div class="meta-row">
+      <span class="pill acc">前置：0.2 一个神经元</span>
+      <span class="pill">用于：§3.2.1 softmax、§3.4 输出层、§5 交叉熵</span>
+      <span class="pill">约 <b>26</b> 分钟</span>
+    </div>
+  </header>
+
+  <div class="whybox">
+    <div class="whybox-h">为什么学这一页</div>
+    <div class="whybox-g">
+      <div class="wide"><b>论文位置</b><span>§3.2.1 式(1) softmax；§3.4 输出层；§5 交叉熵；§6.1 困惑度</span></div>
+      <div><b>不学卡在哪</b><span>softmax 里的 e 没有任何交代；不知道为什么要除以 √d_k；看不懂困惑度这个指标。</span></div>
+      <div><b>它解决什么</b><span>把“相似度→权重”和“分数→概率”两次转换讲透，这是注意力和输出层共同的终点。</span></div>
+    </div>
+  </div>
+
+  <h2><span class="n">1</span>先承认：这个符号确实来得突然</h2>
+  <div class="sec">
+    <p>在讲神经元的时候，所有运算都是加、减、乘、比大小：<code>2.0×1 + 1.5×1 − 2.5 = 1.0</code>。没有任何符号需要额外解释。</p>
+    <p>然后讲到 softmax，句子突然变成这样：<code>e^2.0 = 7.389</code>。读者自然会问三个问题：</p>
+    <ul>
+      <li>这个 <code>e</code> 是什么数字？</li>
+      <li>为什么要把分数"取 e 的幂"？</li>
+      <li>为什么不用乘 2、加 1、取平方这些更简单的东西？</li>
+    </ul>
+    <p>这一页就按这个顺序回答。答案不依赖任何大学数学，只需要会算"连乘"。</p>
+  </div>
+
+  <h2><span class="n">2</span>指数函数：先不谈 e，谈"不断乘同一个数"</h2>
+  <div class="sec">
+    <p><code>2³</code> 表示 2×2×2 = 8。这里的 2 叫<b>底数</b>，3 叫<b>指数</b>。指数函数的定义很朴素：
+      <b>底数固定，指数随便变</b>，写作 <code>2ˣ</code>。</p>
+    <p>它有一个人人都该有的直觉：<b>指数每加 1，结果就乘一次底数</b>。</p>
+    <table class="tb">
+      <thead><tr><th style="width:24%">指数 x</th><th style="width:24%">2ˣ</th><th>怎么来的</th></tr></thead>
+      <tbody>
+        <tr><td>0</td><td>1</td><td>规定任何数的 0 次方都是 1</td></tr>
+        <tr><td>1</td><td>2</td><td>2</td></tr>
+        <tr><td>3</td><td>8</td><td>2×2×2</td></tr>
+        <tr><td>10</td><td>1,024</td><td>每加 1 就乘 2，乘 10 次</td></tr>
+        <tr><td>20</td><td>1,048,576</td><td>再乘 10 次，已经过百万</td></tr>
+        <tr><td>100</td><td>约 1.27×10³⁰</td><td>31 位数</td></tr>
+      </tbody>
+    </table>
+    <p>这就是指数函数最鲜明的性格：<b>涨得极快，快到不讲道理</b>。指数只加了 90（从 10 到 100），
+      结果从一千涨到了 10³⁰——差了一亿亿亿倍。</p>
+    <div class="note">
+      <p><b>记住这一条，后面全靠它：</b>指数函数会把"输入之间的小差距"变成"输出之间的大差距"。
+        输入差 1，输出就差一个底数倍（用 2 就是 2 倍，用 e 就是 2.718 倍）。输入差 3，输出差几十倍。</p>
+    </div>
+  </div>
+
+  <h2><span class="n">3</span>e 是什么：一个"一直增长下去"的极限</h2>
+  <div class="sec">
+    <p>用 2 做底数，涨得很快。用 3 做底数，涨得更快。用 10，更夸张。那么——<b>有没有一个"最自然"的底数？</b></p>
+    <p>有，而且它不是被谁选出来的，是从一个具体问题里<b>长</b>出来的。</p>
+
+    <h3>从一个存款问题说起</h3>
+    <p>假设有一种存款，年利率 100%（不要纠结现实，这只是个数学设定）。存 1 元，一年后拿多少？</p>
+    <table class="tb">
+      <thead><tr><th style="width:26%">多久结算一次利息</th><th style="width:30%">算式</th><th>一年后本息</th></tr></thead>
+      <tbody>
+        <tr><td>一年一次</td><td>1 × 2</td><td><b>2.0000</b></td></tr>
+        <tr><td>半年一次（每次 50%）</td><td>(1 + 1/2)²</td><td><b>2.2500</b></td></tr>
+        <tr><td>每月一次</td><td>(1 + 1/12)¹²</td><td><b>2.6130</b></td></tr>
+        <tr><td>每天一次</td><td>(1 + 1/365)³⁶⁵</td><td><b>2.7146</b></td></tr>
+        <tr><td>每小时一次</td><td>(1 + 1/8760)⁸⁷⁶⁰</td><td><b>2.71813</b></td></tr>
+        <tr><td>每秒钟一次</td><td>…</td><td><b>2.71828…</b></td></tr>
+      </tbody>
+    </table>
+    <p>结算得越来越频繁，数字确实在变大，但它<b>不会无限变大</b>——它卡在 2.71828... 附近，再细也就到这儿了。</p>
+    <div class="def">
+      <div class="def-h"><b>自然常数 e</b><i>Euler's number</i><span class="loc">数学常数，非论文内容</span></div>
+      <p><b>数值：</b>e ≈ <b>2.718281828…</b>，和 π 一样是无限不循环小数。</p>
+      <p><b>它到底是什么：</b>"增长连续不断地发生时，最终能长到原数的多少倍"的那个极限值。</p>
+      <p><b>为什么叫"自然"：</b>因为凡是"变化速率与当前大小成正比"的现象——细菌繁殖、放射衰变、复利、冷却——描述它们的公式里都会自动冒出 e。
+        它不是人为规定的，是这类现象的通用常数。</p>
+    </div>
+    <div class="note">
+      <p><b>换个角度理解：</b>2 是"一年只结算一次"的增长倍率，e 是"每时每刻都在增长"的增长倍率。
+        所以 e 比 2 大一点点——多出来的那部分是"利息也能生利息"带来的。</p>
+    </div>
+  </div>
+
+  <h2><span class="n">4</span>为什么偏偏选 e，而不是 2 或 10</h2>
+  <div class="sec">
+    <p>这是最关键的一节。答案分三层，第三层会让你彻底放下这个疑问。</p>
+
+    <h3>第一层：数学上最干净</h3>
+    <p>对 <code>eˣ</code> 求导，结果还是 <code>eˣ</code>——导数等于自己。所有函数里只有它（和它的倍数）有这个性质。</p>
+    <p>换成 <code>2ˣ</code>，导数就多一个系数 0.693；换成 <code>10ˣ</code>，多一个 2.303。每次求导都要拖着这个尾巴。
+      用 e 做底数，公式最简洁。这也是为什么微积分、概率论里到处是 e。</p>
+
+    <h3>第二层：任何底数都能换成 e</h3>
+    <p><code>2ˣ</code> 可以写成 <code>e^(0.693x)</code>，<code>10ˣ</code> 可以写成 <code>e^(2.303x)</code>。
+      也就是说，<b>用 e 做底数不会丢掉任何表达能力</b>——别的底数能干的，它都能干，只是把指数乘了个常数。</p>
+
+    <h3>第三层：在 softmax 里，用哪个底数结果完全一样</h3>
+    <p>这一层最重要。假设用底数 a 做 softmax：</p>
+    <div class="q">P(第 i 个) = a^xi ÷ (a^x1 + a^x2 + … + a^xn)</div>
+    <p>现在把底数换成 e，并且把每个分数先乘上一个常数 k（因为 a^x = e^(kx)）：</p>
+    <div class="q">P(第 i 个) = e^(k·xi) ÷ (e^(k·x1) + e^(k·x2) + …)</div>
+    <p>分子分母里，<b>每个 e 的指数都乘了同一个 k</b>。这相当于分子分母同乘一个数，比值不变？——不完全是，
+      但结论是对的：<b>底数只相当于把所有分数统一缩放了一下，softmax 输出的比例关系完全不变。</b></p>
+    <table class="tb">
+      <thead><tr><th style="width:30%">用不同底数算同一组分数 [−1, 2, −0.5, 0.5]</th><th>得到的概率</th></tr></thead>
+      <tbody>
+        <tr><td>底数 2</td><td>3.7% / 73.8% / 6.1% / 16.5%</td></tr>
+        <tr><td>底数 <b>e</b></td><td>3.7% / 73.8% / 6.1% / 16.5%</td></tr>
+        <tr><td>底数 10</td><td>3.7% / 73.8% / 6.1% / 16.5%</td></tr>
+      </tbody>
+    </table>
+    <div class="note">
+      <p><b>结论：</b>"为什么用 e"这个问题，在 softmax 这个场景里其实<b>不重要</b>——用 2、用 10、用 e 算出来的概率一模一样。
+        大家统一用 e，只是因为求导方便、和交叉熵的 log 正好抵消、写论文时约定俗成。真正的关键在于"<b>用指数</b>"这件事，
+        而不在于"用哪个底数"。</p>
+    </div>
+    <div class="x">易错：不要以为"换成底数 2，softmax 结果就变了"。变的是中间数值（比如 2^2=4 而 e^2=7.389），
+      但归一化之后的比例完全一致。<b>唯一会变的是数值稳定性</b>——底数越大越容易溢出。</div>
+  </div>
+
+  <h2><span class="n">5</span>那为什么必须"用指数"：三个需求刚好对上</h2>
+  <div class="sec">
+    <p>回到原始问题。我们手上有一组分数（相似度、logits，随便叫），可能有正有负、大小悬殊。
+      要把它变成"加起来等于 1 的比例"，需要满足三件事：</p>
+
+    <table class="tb">
+      <thead><tr><th style="width:26%">需求</th><th style="width:30%">为什么需要</th><th>指数函数怎么满足</th></tr></thead>
+      <tbody>
+        <tr><td><b>① 必须是正数</b></td><td>分数可能是 −3.5，但"概率 −35%"没有意义</td><td><code>eˣ</code> 对任何 x 都大于 0，负数的结果也是正的小数（如 e⁻³ = 0.0498）</td></tr>
+        <tr><td><b>② 不能改变大小顺序</b></td><td>原来分数最高的词，变成概率后还应该是最高的</td><td><code>eˣ</code> 是单调递增的：x 大，eˣ 一定大</td></tr>
+        <tr><td><b>③ 要拉大差距</b></td><td>最相关的词应该拿到明显更大的份额，而不是大家平均分</td><td>分数差 1，结果差 2.7 倍；差 3，差 20 倍</td></tr>
+      </tbody>
+    </table>
+
+    <p>试试别的函数，看哪里不合：</p>
+    <table class="tb">
+      <thead><tr><th style="width:22%">候选</th><th style="width:16%">正数？</th><th style="width:20%">保序？</th><th>问题</th></tr></thead>
+      <tbody>
+        <tr><td>直接除以总和</td><td>✗</td><td>✓</td><td>负分直接变成负概率，且负数总和可能为 0，除不了</td></tr>
+        <tr><td>先取绝对值再归一化</td><td>✓</td><td>✗</td><td>−5 和 +5 会变成同一个值，顺序彻底乱掉</td></tr>
+        <tr><td>加一个常数变成正数</td><td>✓</td><td>✓</td><td>差距没有放大，最大值和最小值的比例还是原样，不够"尖"</td></tr>
+        <tr><td>平方</td><td>✓</td><td>✗（负数时）</td><td>−3 的平方是 9，比 −1 的平方 1 大，顺序反了</td></tr>
+        <tr><td><b>指数</b></td><td>✓</td><td>✓</td><td><b>三项全满足</b></td></tr>
+      </tbody>
+    </table>
+    <p>所以不是"数学家偏爱 e"，而是<b>指数这个形状恰好同时满足三个硬需求</b>。用底数 2 也能满足，
+      只是大家约定用 e。</p>
+  </div>
+
+  <h2><span class="n">6</span>手算一遍：你屏幕上那组数字是怎么来的</h2>
+  <div class="sec">
+    <p>用截图里那四个分数：<b>−1.0、2.0、−0.5、0.5</b>。走一遍完整流程，看 3.7% / 73.8% / 6.1% / 16.5% 是不是算得出来。</p>
+
+    <div class="op">
+      <div class="op-h"><span class="i">1</span>先减去最大值（这一步是数值稳定，后面解释）</div>
+      <div class="op-b">
+        <dl class="op-f"><dt>最大值</dt><dd>2.0</dd></dl>
+        <dl class="op-f"><dt>各自减</dt><dd>−1.0−2.0 = <b>−3.0</b>　2.0−2.0 = <b>0</b>　−0.5−2.0 = <b>−2.5</b>　0.5−2.0 = <b>−1.5</b></dd></dl>
+        <dl class="op-f"><dt>为什么可以这么干</dt><dd>分子分母都乘了同一个 e^(−2.0)，比值不变。见下一节。</dd></dl>
+      </div>
+    </div>
+
+    <div class="op">
+      <div class="op-h"><span class="i">2</span>取 e 的幂</div>
+      <div class="op-b">
+        <dl class="op-f"><dt>e^−3.0</dt><dd><b>0.0498</b>（e⁻³ = 1/e³ = 1/20.09）</dd></dl>
+        <dl class="op-f"><dt>e^0</dt><dd><b>1.0000</b></dd></dl>
+        <dl class="op-f"><dt>e^−2.5</dt><dd><b>0.0821</b></dd></dl>
+        <dl class="op-f"><dt>e^−1.5</dt><dd><b>0.2231</b></dd></dl>
+        <dl class="op-f"><dt>全部为正</dt><dd>注意原来有负分，取完指数后全部变成正数——需求① 达成</dd></dl>
+      </div>
+    </div>
+
+    <div class="op">
+      <div class="op-h"><span class="i">3</span>加起来，再各自除以总和</div>
+      <div class="op-b">
+        <dl class="op-f"><dt>总和</dt><dd>0.0498 + 1.0000 + 0.0821 + 0.2231 = <b>1.3550</b></dd></dl>
+        <dl class="op-f"><dt>词 A</dt><dd>0.0498 ÷ 1.3550 = 0.0367 → <b>3.7%</b></dd></dl>
+        <dl class="op-f"><dt>词 B</dt><dd>1.0000 ÷ 1.3550 = 0.7380 → <b>73.8%</b></dd></dl>
+        <dl class="op-f"><dt>词 C</dt><dd>0.0821 ÷ 1.3550 = 0.0606 → <b>6.1%</b></dd></dl>
+        <dl class="op-f"><dt>词 D</dt><dd>0.2231 ÷ 1.3550 = 0.1647 → <b>16.5%</b></dd></dl>
+        <dl class="op-f"><dt>核对</dt><dd>3.7+73.8+6.1+16.5 = <b>100.1%</b>（四舍五入误差），和为 1 达成</dd></dl>
+      </div>
+    </div>
+
+    <p>和界面上的数字完全一致。这就是那段代码在背后做的事，没有任何别的魔法。</p>
+    <div class="note">
+      <p><b>顺手解释"放大差距"有多强：</b>原始分数最高 2.0、最低 −1.0，差距只有 3；
+        取指数后是 1.0 和 0.0498，<b>差了 20 倍</b>；归一化后是 73.8% 和 3.7%，<b>差了 20 倍</b>。
+        分数上 3 的差距，被放大成了概率上 20 倍的差距。这正是"让最相关的词拿到大份额"的实现方式。</p>
+    </div>
+  </div>
+
+  <h2><span class="n">7</span>为什么要先减去最大值：一个必须知道的实现细节</h2>
+  <div class="sec">
+    <p>你可能会注意到，标准实现里都会先减掉这一行里最大的那个数。为什么？</p>
+    <p><b>因为 e 涨得太快，会溢出。</b>双精度浮点数最大约 1.8×10³⁰⁸，而 e^710 就超过它了。
+      注意力里的分数如果算到 800，<code>e^800</code> 会直接变成 <code>Infinity</code>，接下来所有计算都变成 NaN。</p>
+    <p><b>为什么减了不影响结果：</b>设最大值为 m，那么</p>
+    <div class="q">e^(xi−m) ÷ Σ e^(xj−m)　=　(e^xi · e^−m) ÷ Σ(e^xj · e^−m)　=　e^xi ÷ Σ e^xj</div>
+    <p>分子分母都乘了 <code>e^−m</code>，约掉了。<b>结果一模一样，但最大的那项变成了 e⁰ = 1，绝不会溢出。</b></p>
+    <div class="x">易错：减最大值<b>只影响数值稳定性，不影响输出</b>。如果你手算时忘了减，结果也对，只是计算机里可能溢出。</div>
+  </div>
+
+  <h2><span class="n">8</span>log 又是什么：指数的逆运算</h2>
+  <div class="sec">
+    <div class="def">
+      <div class="def-h"><b>对数</b><i>logarithm，这里特指自然对数 ln</i><span class="loc">§5 交叉熵、§6.1 困惑度</span></div>
+      <p><b>一句话：</b>log 回答的问题是"e 要乘几次自己，才能得到这个数"。</p>
+      <p><b>举例：</b><code>ln(1) = 0</code>（e⁰=1）；<code>ln(e) = 1</code>；<code>ln(7.389) = 2</code>（因为 e²≈7.389）；<code>ln(0.5) = −0.693</code>。</p>
+      <p><b>关键性质：</b>它把"乘法"变成"加法"。<code>ln(a×b) = ln(a) + ln(b)</code>。这一条是所有概率计算的基础。</p>
+      <div class="x">易错：log 的定义域是正数。<code>ln(0)</code> 是负无穷，<code>ln(负数)</code> 没有实数解。所以交叉熵里必须保证概率大于 0——这也是为什么 softmax 的输出必须严格为正。</div>
+    </div>
+
+    <h3>为什么损失要用 −log</h3>
+    <p>因为要衡量"模型给正确答案的把握有多差"，而 0 到 1 之间的概率直接把差距拉平了：0.9 和 0.1 看起来只差 0.8，
+      但"几乎确定"和"几乎排除"是天壤之别。</p>
+    <table class="tb">
+      <thead><tr><th style="width:26%">模型给正确答案的概率</th><th style="width:24%">−ln(P)</th><th>解读</th></tr></thead>
+      <tbody>
+        <tr><td>1.00</td><td><b>0</b></td><td>完全确定且正确，零惩罚</td></tr>
+        <tr><td>0.90</td><td><b>0.105</b></td><td>很有把握</td></tr>
+        <tr><td>0.50</td><td><b>0.693</b></td><td>一半一半</td></tr>
+        <tr><td>0.10</td><td><b>2.303</b></td><td>几乎排除了正确答案，重罚</td></tr>
+        <tr><td>0.01</td><td><b>4.605</b></td><td>完全排除了正确答案，极重罚</td></tr>
+      </tbody>
+    </table>
+    <p>概率从 0.9 掉到 0.1（差 9 倍），损失从 0.1 涨到 2.3（差 22 倍）。<b>log 把"把握变小"放大成了"惩罚变大"。</b></p>
+
+    <h3>三个用 −log 的技术理由</h3>
+    <ol>
+      <li><b>多词序列能累加。</b>生成 20 个词的概率是 20 个数相乘，会小到 10⁻³⁰ 这种无法比较的量级。
+        取 log 后变成 20 个数相加，量级正常。</li>
+      <li><b>和 softmax 配对时梯度极干净。</b>softmax 后面接交叉熵，对分数的梯度恰好是 <code>预测概率 − 真实标签</code>。
+        预测错多少，梯度就是多少，没有多余的系数。这是深度学习里最优雅的一处设计。</li>
+      <li><b>它就是信息论里的"交叉熵"。</b>在信息论里，−log(P) 表示"用概率 P 编码这个事件需要多少信息量"。损失函数借用了这个形式。</li>
+    </ol>
+
+    <div class="def">
+      <div class="def-h"><b>困惑度</b><i>perplexity</i><span class="loc">§6.1 结果表里出现</span></div>
+      <p><b>是什么：</b>交叉熵的指数，<code>ppl = e^loss</code>。</p>
+      <p><b>怎么理解：</b>"模型平均每次要在多少个候选词里犹豫"。ppl=10 意味着它每次相当于在 10 个词里挑；ppl=1 意味着毫不迟疑。</p>
+      <p><b>为什么论文两个指标都报：</b>困惑度只看"对下一个词多有信心"，而翻译质量还要看整句。所以会出现"困惑度变差、BLEU 反而变好"的情况（§6.1 提到过）。</p>
+    </div>
+  </div>
+
+  <h2><span class="n">9</span>回到论文：为什么必须除以 √d_k</h2>
+  <div class="sec">
+    <p>现在能完整理解论文里那个看着奇怪的 <code>√d_k</code> 了。</p>
+    <p>注意力里的分数是 Query 和 Key 的点积。每个分量是独立的随机数时，64 个分量相加，结果的<b>标准差大约是 √64 = 8</b>。
+      也就是说，分数很容易跑到 ±20、±30 这种量级。</p>
+    <p>把这个数丢进 softmax：e²⁰ 和 e⁻²⁰ 相差 e⁴⁰ ≈ 2.4×10¹⁷。最大的那项吃掉几乎 100%，其余全部接近 0。</p>
+    <div class="def">
+      <div class="def-h"><b>softmax 饱和</b><i>saturation</i><span class="loc">§3.2.1 除以 √d_k 的理由</span></div>
+      <p><b>现象：</b>输出接近 one-hot（一个 1，其余 0）。</p>
+      <p><b>为什么是灾难：</b>梯度里含有一个因子 <code>P(1−P)</code>。当 P 接近 1 或 0 时，这个因子接近 0，<b>梯度消失，参数不再更新</b>。</p>
+      <p><b>怎么解决：</b>把分数除以 √d_k（64 维时就是除以 8），把标准差从 8 拉回 1，softmax 就不会饱和。</p>
+      <div class="x">易错：除以 √d_k 不是"让数值变小一点"这种经验做法，它有明确的统计学依据——<b>把点积的方差归一化到 1</b>。所以 d_k 变了，除数也要跟着变，不能用固定常数。</div>
+    </div>
+    <div class="note">
+      <p><b>一句话串起来：</b>指数是为了把分数变成正的比例 → 指数涨得太快 → 分数一大就饱和 → 梯度消失 → 所以先把分数除以 √d_k 压回正常范围。
+        这条因果链，就是论文 §3.2.1 里那一小段话的完整含义。</p>
+    </div>
+  </div>
+
+  <h2><span class="n">10</span>小结</h2>
+  <div class="sec">
+    <div class="summary">
+      <h3>本页要点</h3>
+      <ol>
+        <li><b>e ≈ 2.718</b>，是"连续增长"的极限倍率，不是人为挑选的数。</li>
+        <li>"为什么用 e 而不是 2"——在 softmax 里<b>用哪个底数结果完全一样</b>，用 e 只是求导方便、约定俗成。真正关键的是"用指数"。</li>
+        <li>指数函数同时满足三个硬需求：<b>输出恒正、保持顺序、放大差距</b>。别的简单函数总有一项不满足。</li>
+        <li><b>softmax 三步</b>：减最大值（防溢出）→ 取 e 的幂 → 除以总和。手算结果与界面完全一致。</li>
+        <li><b>log 是 e 的逆运算</b>；损失用 <code>−log P</code>，因为它能把"把握变小"放大成"惩罚变大"，且多词概率可以相加。</li>
+        <li>分数太大会让 softmax <b>饱和</b>（输出接近 one-hot），梯度消失——这就是除以 <b>√d_k</b> 的原因。</li>
+      </ol>
+    </div>
+  </div>
+
+  <h2><span class="n">11</span>自测</h2>
+  <div class="quiz">
+    <div class="qz">
+      <div class="q"><i>Q1</i>把 softmax 的底数从 e 换成 2，同一组输入得到的概率会怎样？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>全部变小，因为 2 &lt; e</span></button>
+        <button class="opt" data-ok="1"><i>B</i><span>完全不变，底数只相当于给所有分数乘了一个常数</span></button>
+        <button class="opt"><i>C</i><span>顺序反转</span></button>
+      </div>
+      <div class="ex">a^x = e^(kx)，底数变化等价于把每个分数乘以同一个 k。分子分母同比例缩放，归一化后比例不变。变的只是中间数值大小和溢出风险。</div>
+    </div>
+    <div class="qz">
+      <div class="q"><i>Q2</i>分数 [0, 1] 经过 softmax 后，较大的那一项约占多少？（e ≈ 2.718）</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>50%</span></button>
+        <button class="opt" data-ok="1"><i>B</i><span>约 73%</span></button>
+        <button class="opt"><i>C</i><span>约 90%</span></button>
+      </div>
+      <div class="ex">e⁰=1，e¹=2.718，总和 3.718。大项 = 2.718/3.718 ≈ 73.1%，小项 26.9%。原始只差 1 分，概率差了近 3 倍。</div>
+    </div>
+    <div class="qz">
+      <div class="q"><i>Q3</i>为什么标准实现要先减去这一行的最大值？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>为了让最大的那一项变成 100%</span></button>
+        <button class="opt" data-ok="1"><i>B</i><span>防止 e 的幂溢出，且数学上结果完全等价</span></button>
+        <button class="opt"><i>C</i><span>为了让负分数变成正数</span></button>
+      </div>
+      <div class="ex">减最大值后最大项变成 e⁰=1，不会溢出。因为分子分母同乘 e^(−m)，比值不变，所以输出完全一致。这是纯工程技巧，不改变语义。</div>
+    </div>
+    <div class="qz">
+      <div class="q"><i>Q4</i>交叉熵损失用 −log(P) 而不是 (1−P)，主要好处是？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>计算更快</span></button>
+        <button class="opt" data-ok="1"><i>B</i><span>对"自信地答错"施加指数级重罚，且多词概率可由乘变加</span></button>
+        <button class="opt"><i>C</i><span>保证损失永远是整数</span></button>
+      </div>
+      <div class="ex">P=0.01 时 1−P 只有 0.99，log 给出 4.6；差距被放大。同时 ln(abc)=lna+lnb+lnc，让长序列的概率计算从连乘变成连加，避免数值下溢。</div>
+    </div>
+    <div class="qz">
+      <div class="q"><i>Q5</i>如果去掉注意力里的 ÷√d_k，最可能发生什么？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>注意力权重会变成均匀分布</span></button>
+        <button class="opt" data-ok="1"><i>B</i><span>softmax 饱和成近似 one-hot，梯度接近 0，训练停滞</span></button>
+        <button class="opt"><i>C</i><span>计算量增加一倍</span></button>
+      </div>
+      <div class="ex">点积的标准差约 √d_k，d_k=64 时约 8，分数容易到 ±20 量级。e^20 悬殊到 10¹⁷，softmax 输出接近 one-hot，梯度因子 P(1−P) → 0，学不动。</div>
+    </div>
+  </div>
+
+  <div class="cite">
+    <b>原文出处</b>
+    §3.2.1 式(1) 及其下方说明（"we suspect that for large values of d<sub>k</sub>, the dot products grow large in magnitude,
+    pushing the softmax function into regions where it has extremely small gradients"）；
+    §3.4 输出层 softmax；§5 交叉熵与标签平滑；§6.1 困惑度。e 与对数的数学背景非论文内容。
+  </div>
+
+  <div id="termIndex"></div>
+</main>
+<script src="assets/course.js"></script>
+</body>
+</html>

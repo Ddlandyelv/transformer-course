@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page="start2">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>一个神经元：模型里最小的零件 · Transformer 精读</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<main class="doc" id="doc">
+
+  <header class="lesson-head">
+    <div class="kicker"><span class="sec-no">0.2</span><span>第零幕 · 从零开始</span><span>·</span><span>NEURON</span></div>
+    <h1>一个神经元：模型里最小的零件</h1>
+    <p class="lede">Transformer 有 6500 万个参数，但它们全都长在同一个零件上：<b>神经元</b>。
+      这一页只干一件事——把这一个零件拆开，用真实数字算给你看。
+      看懂之后，"权重、偏置、激活、层、参数"这五个词就都有落点了。</p>
+    <div class="meta-row">
+      <span class="pill acc">前置：0.1 为什么不能写规则</span>
+      <span class="pill">用于：§3.3 FFN、§3.1 残差</span>
+      <span class="pill">约 <b>20</b> 分钟</span>
+    </div>
+  </header>
+
+  <div class="whybox">
+    <div class="whybox-h">为什么学这一页</div>
+    <div class="whybox-g">
+      <div class="wide"><b>论文位置</b><span>§3.3 式(2)；§3.1 每个子层</span></div>
+      <div><b>不学卡在哪</b><span>§3.3 说“两次线性变换夹一个 ReLU”，不知道这两步各在干什么；看到 512→2048→512 只当成数字游戏。</span></div>
+      <div><b>它解决什么</b><span>FFN 占了模型三分之二的参数，不懂神经元就无法理解这三分之二在做什么。</span></div>
+    </div>
+  </div>
+
+  <h2><span class="n">1</span>它只做四件事</h2>
+  <div class="sec">
+    <p>一个神经元接收几个数字，吐出一个数字。中间只经过四个动作，没有任何别的机关：</p>
+    <div class="op">
+      <div class="op-h"><span class="i">1</span>收信号<span class="tg">输入</span></div>
+      <div class="op-b">
+        <dl class="op-f"><dt>收到什么</dt><dd>几个数字，记作 x₁, x₂, …, xₙ。可以理解为"几个观察到的信号"。</dd></dl>
+      </div>
+    </div>
+    <div class="op">
+      <div class="op-h"><span class="i">2</span>各自乘一个权重，再全加起来<span class="tg">加权求和</span></div>
+      <div class="op-b">
+        <dl class="op-f"><dt>做什么</dt><dd>x₁×w₁ + x₂×w₂ + … + xₙ×wₙ</dd></dl>
+        <dl class="op-f"><dt>权重是什么</dt><dd>每个信号配一个数字 w。它表示"这个信号有多重要"。<b>w 是学出来的，不是人定的</b>。</dd></dl>
+      </div>
+    </div>
+    <div class="op">
+      <div class="op-h"><span class="i">3</span>加一个偏置<span class="tg">调门槛</span></div>
+      <div class="op-b">
+        <dl class="op-f"><dt>做什么</dt><dd>总和再 + b。b 叫<b>偏置</b>（bias），一个数字。</dd></dl>
+        <dl class="op-f"><dt>它管什么</dt><dd>不管输入是什么，先给一个基础分。b 是负数就是"提高门槛"，b 是正数就是"降低门槛"。</dd></dl>
+      </div>
+    </div>
+    <div class="op">
+      <div class="op-h"><span class="i">4</span>过一道门槛，吐出结果<span class="tg">激活</span></div>
+      <div class="op-b">
+        <dl class="op-f"><dt>做什么</dt><dd>把上一步的数丢进一个固定函数 f，得到输出。</dd></dl>
+        <dl class="op-f"><dt>最常用的 f</dt><dd>ReLU：<code>f(t) = max(0, t)</code>。正数原样通过，负数一律归零。</dd></dl>
+      </div>
+    </div>
+    <p>合起来就一行：<b>输出 = f( x₁w₁ + x₂w₂ + … + b )</b>。整篇论文里所有"神经网络"的部分，
+      拆到最底层都是这一行，重复几百万次。</p>
+  </div>
+
+  <h2><span class="n">2</span>手算一次：判断这句话是不是疑问句</h2>
+  <div class="sec">
+    <p>用两个信号、三个参数，把这个神经元搭出来，然后拿四个句子试。</p>
+
+    <h3>先定输入</h3>
+    <table class="tb">
+      <thead><tr><th style="width:16%">信号</th><th style="width:30%">含义</th><th>取值</th></tr></thead>
+      <tbody>
+        <tr><td><b>x₁</b></td><td>句末有问号吗</td><td>有 = 1，没有 = 0</td></tr>
+        <tr><td><b>x₂</b></td><td>句子里有「吗 / 呢 / 吧」吗</td><td>有 = 1，没有 = 0</td></tr>
+      </tbody>
+    </table>
+
+    <h3>再定参数</h3>
+    <table class="tb">
+      <thead><tr><th style="width:16%">参数</th><th style="width:16%">取值</th><th>这个值意味着什么</th></tr></thead>
+      <tbody>
+        <tr><td><b>w₁</b></td><td>2.0</td><td>问号是<b>强</b>证据，一个就问号顶 2 分</td></tr>
+        <tr><td><b>w₂</b></td><td>1.5</td><td>「吗」是<b>弱</b>一点证据，但也很有用</td></tr>
+        <tr><td><b>b</b></td><td>−2.5</td><td>门槛很高：光有一个弱证据还不够，必须凑够 2.5 分才判"是疑问句"</td></tr>
+      </tbody>
+    </table>
+
+    <h3>然后逐句算</h3>
+    <table class="tb">
+      <thead><tr><th style="width:26%">句子</th><th style="width:10%">x₁</th><th style="width:10%">x₂</th><th style="width:26%">算式</th><th style="width:12%">结果</th><th>判断</th></tr></thead>
+      <tbody>
+        <tr><td>你吃饭了<b>吗</b>？</td><td>1</td><td>1</td><td>2.0×1 + 1.5×1 − 2.5</td><td><b>+1.0</b></td><td>ReLU(1.0)=1.0 &gt; 0 → <b>是</b> ✓</td></tr>
+        <tr><td>我吃饭了。</td><td>0</td><td>0</td><td>2.0×0 + 1.5×0 − 2.5</td><td><b>−2.5</b></td><td>ReLU(−2.5)=0 → <b>不是</b> ✓</td></tr>
+        <tr><td>你吃饭了吗。</td><td>0</td><td>1</td><td>2.0×0 + 1.5×1 − 2.5</td><td><b>−1.0</b></td><td>ReLU(−1.0)=0 → <b>不是</b> ✗</td></tr>
+        <tr><td>你吃饭了？吗</td><td>1</td><td>0</td><td>2.0×1 + 1.5×0 − 2.5</td><td><b>−0.5</b></td><td>ReLU(−0.5)=0 → <b>不是</b> ✗</td></tr>
+      </tbody>
+    </table>
+
+    <p>第三、四行是故意的：拿掉问号只剩「吗」，或者拿掉「吗」只剩问号，都凑不够 2.5 分。
+      这正说明<b>偏置在控制门槛</b>——参数调成这样，这个神经元的规则就是"两个证据都齐才算疑问句"。</p>
+
+    <div class="note">
+      <p><b>换个参数，规则就变了。</b>如果 b 改成 −1.0，那么"只有问号"（得 2.0 − 1.0 = 1.0）也会判为疑问句。
+        如果 w₁ 改成 1.0，那么问号的份量就和「吗」差不多。
+        <b>所有"模型的行为"，本质都是这些数字的位置。</b>训练要做的，就是找到一组位置，让整体表现最好。</p>
+    </div>
+
+    <div class="x">
+      注意最后一行的处理：<b>ReLU 把 −0.5 和 −2.5 都压成了 0</b>。这两个负数原本差别很大，经过 ReLU 之后看起来一样了。
+      这不是 bug，是有意为之：负数意味着"证据不足"，证据不足就是"不发声"。
+      至于不足多少，后面的层并不关心。
+    </div>
+  </div>
+
+  <h2><span class="n">3</span>三个名词，现在有了具体所指</h2>
+  <div class="sec">
+    <div class="def">
+      <div class="def-h"><b>权重</b><i>weight，记作 w</i><span class="loc">§3.3 式(2) 的 W₁、W₂</span></div>
+      <p><b>是什么：</b>每个输入信号配的那个倍数。上面的例子里是 w₁=2.0、w₂=1.5。</p>
+      <p><b>它在决定什么：</b>这个信号有多重要。w 越大的信号，对输出影响越大。</p>
+      <p><b>它从哪来：</b>训练学出来的，人只给初始值（随机）。</p>
+      <div class="x">易错：权重不是"重要性打分"，它是<b>在具体任务里</b>的系数。换一个任务，同一个信号可能需要完全不同甚至相反方向的 w。</div>
+    </div>
+    <div class="def">
+      <div class="def-h"><b>偏置</b><i>bias，记作 b</i><span class="loc">§3.3 式(2) 的 b₁、b₂</span></div>
+      <p><b>是什么：</b>求和之后加的那个常数。例子里是 −2.5。</p>
+      <p><b>为什么不能省：</b>没有 b，输出就永远正比于输入，神经元只能表达"过原点"的关系。
+        加了 b，才能表达"输入是 0 但依然要输出某个值"这类情况。例子里，b 让门槛从"有一个证据"抬到"两个都要有"。</p>
+      <div class="x">易错：b 不是"阈值"。真正的判定发生在 ReLU 里（拿 0 当分界），b 只是<b>平移</b>了那个分界的位置。</div>
+    </div>
+    <div class="def">
+      <div class="def-h"><b>激活函数</b><i>activation function，记作 f</i><span class="loc">§3.3 式(2) 中的 ReLU</span></div>
+      <p><b>是什么：</b>加权求和之后套的那个固定函数。论文用的是 ReLU：<code>max(0, x)</code>。</p>
+      <p><b>为什么必须有：</b>不加它，整个网络就退化成一个大的线性函数（下一节会用数字证明）。</p>
+      <p><b>还有哪些：</b>sigmoid、tanh、LeakyReLU、GELU。它们形状不同，作用都是"插入非线性"。</p>
+    </div>
+  </div>
+
+  <h2><span class="n">4</span>为什么"不加激活函数就不行"：用数字算给你看</h2>
+  <div class="sec">
+    <p>假设某一层只做 y = w·x + b，不做任何弯折。第一层 w₁=2, b₁=1；第二层 w₂=3, b₂=0。</p>
+    <p>把第一层的输出代进第二层：</p>
+    <div class="q">y = 3 × (2x + 1) + 0 = 6x + 3</div>
+    <p>这等价于<b>一层</b> w=6, b=3 的线性层。也就是说，两层叠起来，除了"参数变多"，表达能力<b>一点没涨</b>。</p>
+    <p>推到一百层也一样：不管叠多少层，最后都能压成一个 y = Wx + B。这就是为什么必须每隔一段插一个非线性函数——
+      <b>它把直线掰弯，让后面的层有机会表达"非直线"的关系。</b></p>
+
+    <div class="def">
+      <div class="def-h"><b>ReLU</b><i>rectified linear unit</i><span class="loc">§3.3 式(2)</span></div>
+      <p><b>公式：</b><code>ReLU(x) = max(0, x)</code>。正数原样，负数归零。</p>
+      <p><b>形状：</b>先是一条水平的线（x&lt;0 时恒为 0），到 0 突然拐一个角，然后是一条斜率 1 的直线。</p>
+      <p><b>为什么论文选它：</b>算得快（只比大小，不做指数），而且不会像 sigmoid 那样在两端"饱和"（梯度接近 0，学不动）。</p>
+      <div class="x">易错：ReLU 在 x=0 处有一个尖角，不可导。实际实现里约定该点导数为 0 或 1，不影响训练。</div>
+    </div>
+
+    <div class="def">
+      <div class="def-h"><b>GELU</b><i>Gaussian error linear unit</i><span class="loc">本文<b>没有</b>使用；BERT、GPT 使用</span></div>
+      <p><b>是什么：</b>ReLU 的平滑版本——不是"负的全砍掉"，而是"负的按比例缩小，越负压得越狠"。</p>
+      <p><b>为什么会有它：</b>ReLU 那个尖角让函数在 0 附近不够光滑。GELU 用一条平滑曲线代替它，
+        整体形状和 ReLU 很像，但处处可导、过渡更柔和。</p>
+      <p><b>和本文的关系：</b><b>论文里没有 GELU</b>（它 2016 年提出，但 Transformer 原文用的是 ReLU）。
+        后来的 BERT、GPT 系列改用 GELU，效果略好。你如果在别的资料里看到 GELU，那是后续模型的改进，不是这篇论文的内容。</p>
+      <div class="x">易错：GELU 和 ReLU 的差别是"平滑程度"，不是"有没有非线性"。两者都能提供非线性，把 FFN 换成 GELU 不会改变架构，只是换了一个更光滑的弯折。</div>
+    </div>
+  </div>
+
+  <h2><span class="n">5</span>一个神经元的极限：它只能画一条直线</h2>
+  <div class="sec">
+    <p>把输入缩到两个数，就能画在平面上。一个神经元做的事，本质上是在平面上<b>画一条直线</b>，把两边分开：
+      线的一侧输出正数（ReLU 后不为 0），另一侧输出 0。</p>
+    <p>这个限制看起来很弱。有些问题，一条直线永远分不开。</p>
+
+    <h3>一个具体的反例</h3>
+    <p>任务：判断"两个信号是不是不一样"。</p>
+    <table class="tb">
+      <thead><tr><th style="width:20%">x₁</th><th style="width:20%">x₂</th><th>算不算"不一样"</th></tr></thead>
+      <tbody>
+        <tr><td>0</td><td>0</td><td>不算（两个都没有）</td></tr>
+        <tr><td>1</td><td>1</td><td>不算（两个都有）</td></tr>
+        <tr><td>1</td><td>0</td><td><b>算</b></td></tr>
+        <tr><td>0</td><td>1</td><td><b>算</b></td></tr>
+      </tbody>
+    </table>
+    <p>画在平面上，(0,0) 和 (1,1) 在左下和右上，(1,0) 和 (0,1) 在左上和右下。
+      两类点是<b>交叉</b>的——你没法用一条直线把两个对角圈在一起、另外两个分开。这就是著名的 <b>XOR 问题</b>。</p>
+    <div class="note warn">
+      <p><b>历史上的事：</b>1969 年 Minsky 和 Papert 在《Perceptrons》里指出单层感知机连 XOR 都做不了。
+        这个结论让神经网络研究冷了将近二十年，史称第一次 AI 寒冬。解法其实很简单——<b>加一层</b>。</p>
+    </div>
+  </div>
+
+  <h2><span class="n">6</span>加一层为什么就解决了：换个坐标系看问题</h2>
+  <div class="sec">
+    <p>关键思路不是"画更多直线"，而是<b>把点搬到新位置，让它们变得可分</b>。</p>
+    <p>在中间插一层，把原来的两个坐标换成两个新坐标：</p>
+    <div class="q">新坐标① = x₁ + x₂　（两个信号加起来有多少）<br>新坐标② = 两个信号差多少</div>
+    <p>四个点搬过去之后：</p>
+    <table class="tb">
+      <thead><tr><th style="width:22%">原来的点</th><th style="width:30%">新坐标</th><th>类别</th></tr></thead>
+      <tbody>
+        <tr><td>(0, 0)</td><td>(0, 0)</td><td>不算</td></tr>
+        <tr><td>(1, 1)</td><td>(2, 0)</td><td>不算</td></tr>
+        <tr><td>(1, 0)</td><td>(1, <b>1</b>)</td><td><b>算</b></td></tr>
+        <tr><td>(0, 1)</td><td>(1, <b>1</b>)</td><td><b>算</b></td></tr>
+      </tbody>
+    </table>
+    <p>搬完之后，两类点的"第二个坐标"完全不同：不算的一组全是 0，算的一组全是 1。
+      这时一条<b>水平直线</b>就能把它们分开——问题从"分不开"变成了"很容易分"。</p>
+
+    <div class="def">
+      <div class="def-h"><b>隐藏层</b><i>hidden layer</i><span class="loc">§3.3 FFN 的中间 2048 维</span></div>
+      <p><b>是什么：</b>夹在输入和输出之间的那一层。它不直接对外输出，作用是把输入<b>换一种表示</b>。</p>
+      <p><b>为什么要它：</b>原始输入往往"不好分"。换一套坐标之后，原本纠缠在一起的类别被拉开，后面的层就容易处理了。</p>
+      <p><b>代价：</b>维度通常比输入大。FFN 里 512 维的输入先被拉到 <b>2048</b> 维（4 倍），加工完再压回 512 维。</p>
+      <div class="x">易错："隐藏层"不是"看不见的层"。它的输出是实实在在的数字，只是不直接作为最终结果。你完全可以把中间层的激活值打印出来看。</div>
+    </div>
+
+    <p>这个"把输入换一个更好用的坐标"的过程，有个正式名字叫<b>表示学习</b>（representation learning）。
+      深度网络的威力，主要不来自"层数多"，而来自<b>每一层都在为下一层重新组织表示</b>。</p>
+  </div>
+
+  <h2><span class="n">7</span>从一个神经元到一个网络：宽、深、参数</h2>
+  <div class="sec">
+    <p>把很多神经元并排放，就成了一<b>层</b>；把很多层叠起来，就成了一个<b>网络</b>。三个词描述它的规模：</p>
+    <div class="def">
+      <div class="def-h"><b>宽度</b><i>width / 维度 d</i><span class="loc">d_model = 512，d_ff = 2048</span></div>
+      <p><b>是什么：</b>每一层里有多少个神经元，也就是这一层输出几个数字。</p>
+      <p><b>本文的数：</b>主干上所有表示都是 <b>512</b> 维；FFN 中间那一层是 <b>2048</b> 维。</p>
+    </div>
+    <div class="def">
+      <div class="def-h"><b>深度</b><i>depth / 层数 N</i><span class="loc">N = 6</span></div>
+      <p><b>是什么：</b>同样的结构重复几次。论文里编码器堆 6 层、解码器堆 6 层。</p>
+    </div>
+    <div class="def">
+      <div class="def-h"><b>参数量</b><i>parameter count</i><span class="loc">base 约 6500 万</span></div>
+      <p><b>怎么数：</b>把所有权重和偏置加起来。一个 512 维 → 2048 维的线性层，
+        权重矩阵是 512×2048 = <b>1,048,576</b> 个数字，加上 2048 个偏置，约 <b>105 万</b>个参数。</p>
+      <p><b>感受一下：</b>FFN 里这样一次"升维 + 降维"要两个矩阵，合计约 <b>210 万</b>个参数。
+        模型有 12 层（编码器 6 + 解码器 6），每层都有一个 FFN——这就是为什么 §3.3 说"FFN 占了参数的大头"。</p>
+    </div>
+  </div>
+
+  <h2><span class="n">8</span>小结</h2>
+  <div class="sec">
+    <div class="summary">
+      <h3>本页要点</h3>
+      <ol>
+        <li>一个神经元 = <b>加权求和 + 偏置 + 激活</b>：<code>f(x₁w₁ + … + b)</code>，没有别的机关。</li>
+        <li><b>权重</b>决定信号多重要，<b>偏置</b>决定门槛高低，两者都是训练学出来的。</li>
+        <li><b>激活函数必须有</b>：没有它，多少层线性层叠起来都等价于一层（3×(2x+1) = 6x+3）。</li>
+        <li><b>单个神经元只能画一条直线</b>，连 XOR 都做不了；解法是加隐藏层，把点搬到新坐标系。</li>
+        <li><b>ReLU</b> 是本文用的激活（负的归零）；<b>GELU</b> 是后来的平滑替代品，<b>本论文没用</b>。</li>
+        <li>规模用三个词描述：<b>宽 512 / 深 6 / 参数 6500 万</b>。参数集中在 FFN 的 512↔2048 两个矩阵里。</li>
+      </ol>
+    </div>
+  </div>
+
+  <h2><span class="n">9</span>自测</h2>
+  <div class="quiz">
+    <div class="qz">
+      <div class="q"><i>Q1</i>某个神经元 w₁=1.0、w₂=1.0、b=−0.5，输入 x₁=1、x₂=0。经过 ReLU 后输出是？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>0</span></button>
+        <button class="opt" data-ok="1"><i>B</i><span>0.5</span></button>
+        <button class="opt"><i>C</i><span>1.5</span></button>
+      </div>
+      <div class="ex">先求和：1.0×1 + 1.0×0 = 1.0；加偏置：1.0 − 0.5 = 0.5；ReLU(0.5) = 0.5。注意 ReLU 只砍负数，正数原样通过。</div>
+    </div>
+    <div class="qz">
+      <div class="q"><i>Q2</i>如果把 Transformer 里所有激活函数都去掉，只保留线性层和注意力，会发生什么？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>速度变快，效果基本不变</span></button>
+        <button class="opt" data-ok="1"><i>B</i><span>整个模型等价于一个线性变换，表达能力大幅下降</span></button>
+        <button class="opt"><i>C</i><span>只有输出层失效，中间层照常工作</span></button>
+      </div>
+      <div class="ex">线性层叠线性层仍是线性层；注意力里的加权平均本身也是线性的（权重由 softmax 算出，但混合这一步是线性的）。所以 ReLU 是非线性的唯一来源，删掉后整体退化。</div>
+    </div>
+    <div class="qz">
+      <div class="q"><i>Q3</i>关于本文用的激活函数，说法正确的是？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>用的是 GELU，因为它更平滑</span></button>
+        <button class="opt" data-ok="1"><i>B</i><span>用的是 ReLU，GELU 是后来 BERT/GPT 才采用的改进</span></button>
+        <button class="opt"><i>C</i><span>用的是 sigmoid，因为它能输出概率</span></button>
+      </div>
+      <div class="ex">原文 §3.3 式(2) 明确写的是 ReLU。GELU 2016 年提出，Transformer 原文没有采用；后续模型换用它是因为更平滑、效果略好。</div>
+    </div>
+    <div class="qz">
+      <div class="q"><i>Q4</i>为什么说"单个神经元只能画一条直线"？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>因为它只有两个输入</span></button>
+        <button class="opt" data-ok="1"><i>B</i><span>因为输出是输入的加权和，等于在输入空间里做一次线性划分</span></button>
+        <button class="opt"><i>C</i><span>因为 ReLU 把它压成了 0</span></button>
+      </div>
+      <div class="ex">加权求和 x·w + b = 0 定义的就是一个超平面（二维时是一条直线）。输入规模再大，也只是一个高维平面，分不开 XOR 那种交叉分布。</div>
+    </div>
+    <div class="qz">
+      <div class="q"><i>Q5</i>FFN 里把 512 维升到 2048 维再降回 512，升维这一步的作用最准确的描述是？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>为了存更多参数，让模型显得大</span></button>
+        <button class="opt" data-ok="1"><i>B</i><span>在高维空间里给特征重新组合留出余地，再用降维压回原尺寸</span></button>
+        <button class="opt"><i>C</i><span>为了和注意力的输出维度对齐</span></button>
+      </div>
+      <div class="ex">升维提供"更大的工作台"，让非线性有空间把特征重新组合；降维是为了回到 512 维才能和残差相加。维度对齐是降维的目的，不是升维的。</div>
+    </div>
+  </div>
+
+  <div class="cite">
+    <b>原文出处</b>
+    §3.3 Position-wise Feed-Forward Networks（式 2：两层线性变换 + 中间 ReLU，d<sub>ff</sub>=2048）；
+    §3.1 编码器/解码器各 N=6 层；表 3 参数总量 65M。XOR 与感知机局限属背景知识，原文未涉及。
+  </div>
+
+  <div id="termIndex"></div>
+</main>
+<script src="assets/course.js"></script>
+</body>
+</html>

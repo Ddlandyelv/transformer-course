@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page="why">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>为什么用自注意力（§4） · Transformer 精读</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<main class="doc" id="doc">
+
+  <header class="lesson-head">
+    <div class="kicker"><span class="sec-no">14</span><span>正文</span><span>·</span><span>§4</span></div>
+    <h1>为什么是自注意力</h1>
+    <p class="lede">这是全文最像“辩护”的一节：作者主动设了三个指标，把自己的方案和 RNN、CNN 放在同一张表里比。
+      看懂表 1，你就知道 Transformer 到底赢在哪、又输在哪。</p>
+    <div class="meta-row">
+      <span class="pill acc">前置：第 03、06 页</span>
+      <span class="pill">对应：§4、表 1</span>
+      <span class="pill">约 <b>20</b> 分钟</span>
+    </div>
+  </header>
+
+  <div class="whybox">
+    <div class="whybox-h">为什么学这一页</div>
+    <div class="whybox-g">
+      <div class="wide"><b>论文位置</b><span>§4 表 1</span></div>
+      <div><b>不学卡在哪</b><span>表 1 那几行复杂度公式看不懂；不知道论文凭什么论证自注意力更好。</span></div>
+      <div><b>它解决什么</b><span>这是论文唯一的理论辩护章节——回答“为什么不用卷积、不用循环”。</span></div>
+    </div>
+  </div>
+
+  <h2><span class="n">1</span>三个评判标准</h2>
+  <div class="sec">
+    <p>原文开头就把标准摆出来了，一共三条（“three desiderata”）：</p>
+    <ol>
+      <li><b>每层的计算复杂度</b>——算一次要多少运算。</li>
+      <li><b>可并行度</b>——用“最少需要多少个串行操作”来衡量。</li>
+      <li><b>最大路径长度</b>——任意两个位置之间，信号要走多少步。</li>
+    </ol>
+
+    <div class="def">
+      <div class="def-h"><b>串行操作数</b><i>sequential operations</i><span class="loc">§4；表 1</span></div>
+      <p><b>是什么：</b>把计算画成依赖图，最长的那条链上有多少个操作。它衡量“最快也要几步才能算完”。</p>
+      <p><b>为什么不用“时间”衡量：</b>时间是硬件相关的，换个 GPU 就变了；串行步数是算法固有的，与硬件无关。</p>
+      <div class="x">易错：串行操作数 = O(1) 不代表快。它只说明“不排队”，实际耗时还取决于总运算量。自注意力的总运算量是 O(n²·d)，可能更大。</div>
+    </div>
+
+    <div class="def">
+      <div class="def-h"><b>最大路径长度</b><i>maximum path length</i><span class="loc">§4；表 1</span></div>
+      <p><b>是什么：</b>前向信号或反向梯度，在两个位置之间经过的最少边数。</p>
+      <p><b>为什么重要：</b>路径越长，梯度要穿过的非线性越多，越容易消失；同时模型越难“对准”这两个位置的关系。
+        论文原话：路径越短，越容易学长距离依赖。</p>
+      <div class="x">易错：路径长度是<b>层内</b>的度量，不是“句子里的距离”。它衡量的是网络结构，不是语言学距离。</div>
+    </div>
+  </div>
+
+  <h2><span class="n">2</span>表 1 逐行拆解</h2>
+  <div class="sec">
+    <div class="tw">
+      <table class="tb">
+        <thead><tr><th>层类型</th><th>每层复杂度</th><th>串行操作</th><th>最大路径长度</th></tr></thead>
+        <tbody>
+          <tr><td><b>自注意力</b></td><td class="num">O(n² · d)</td><td class="num">O(1)</td><td class="num"><b>O(1)</b></td></tr>
+          <tr><td>循环（RNN）</td><td class="num">O(n · d²)</td><td class="num"><b>O(n)</b></td><td class="num">O(n)</td></tr>
+          <tr><td>卷积（CNN）</td><td class="num">O(k · n · d²)</td><td class="num">O(1)</td><td class="num">O(log<sub>k</sub> n)</td></tr>
+          <tr><td>受限自注意力</td><td class="num">O(r · n · d)</td><td class="num">O(1)</td><td class="num">O(n/r)</td></tr>
+        </tbody>
+      </table>
+      <p style="font-size:12px;color:var(--ink-3);margin:8px 0 0">n = 序列长度，d = 表示维度，k = 卷积核大小，r = 邻域大小。来自论文表 1。</p>
+    </div>
+
+    <h3>自注意力：O(n²·d)</h3>
+    <p>每个词要和每个词算一次点积，n 个词就是 n² 次；每次点积的代价是 d。所以是 n²·d。
+      这就是著名的“平方复杂度”——也是它最大的软肋。</p>
+
+    <h3>循环：O(n·d²)</h3>
+    <p>每步做一次 d×d 的矩阵乘法，代价 d²；共 n 步。所以是 n·d²。
+      注意它<b>没有 n² 项</b>——长序列时反而比注意力省。</p>
+
+    <h3>卷积：O(k·n·d²)</h3>
+    <p>每个位置要做 k 个位置的卷积，每个卷积是 d×d 的运算。比循环还贵 k 倍，但可以并行。</p>
+
+    <h3>受限自注意力：O(r·n·d)</h3>
+    <p>只让每个词看左右 r 个邻居，不算全表。复杂度降到线性，但路径长度变成 O(n/r)——牺牲了“一步到位”。</p>
+  </div>
+
+  <h2><span class="n">3</span>到底谁更便宜？取决于 n 和 d 的关系</h2>
+  <div class="sec">
+    <p>比较 O(n²·d) 和 O(n·d²)：约掉一个 n，就变成比较 <b>n 和 d</b>。
+      也就是说，<b>当序列长度小于表示维度时，自注意力更便宜；反过来则更贵。</b></p>
+    <div class="tw">
+      <table class="tb">
+        <thead><tr><th>序列长度 n（d=512）</th><th>自注意力 n²·d</th><th>循环 n·d²</th><th>谁更省</th></tr></thead>
+        <tbody>
+          <tr><td class="num">100</td><td class="num">5.1 M</td><td class="num">26.2 M</td><td><b>注意力省 5 倍</b></td></tr>
+          <tr><td class="num">512</td><td class="num">134 M</td><td class="num">134 M</td><td>持平</td></tr>
+          <tr><td class="num">1000</td><td class="num">512 M</td><td class="num">262 M</td><td>循环省一半</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>论文的判断是：<b>在翻译任务里 n 通常小于 d</b>（句子几十个词元，维度 512），所以自注意力又快又并行，
+      是压倒性的优势。这也解释了为什么它先在 NLP 落地，而不是先用在长文档或高分辨率图像上。</p>
+
+    <div class="demo" data-w="dims"></div>
+  </div>
+
+  <h2><span class="n">4</span>那张表真正想说的三件事</h2>
+  <div class="sec">
+    <ol>
+      <li><b>并行性不是“稍好”，是量级差异。</b>RNN 的串行步数是 O(n)，自注意力是 O(1)。
+        在硬件上，这意味着 GPU 利用率差几十倍——不是常数优化能弥补的。</li>
+      <li><b>路径长度是“能不能学会”的问题。</b>RNN 的 O(n) 让长距离依赖天生难学；O(1) 让它变成和一个普通局部关系同样容易。</li>
+      <li><b>代价是明码标价的。</b>作者没有藏着 O(n²)，反而自己写了：长序列时会考虑“受限自注意力”（只看邻域 r），
+        把复杂度降到 O(r·n·d)。</li>
+    </ol>
+    <div class="note">
+      <p><b>这段话其实预言了之后五年的研究：</b>“To improve computational performance for tasks involving very long sequences,
+        self-attention could be restricted to considering only a neighborhood of size r … We plan to investigate this approach
+        further in future work.” 后来 Longformer、BigBird、稀疏注意力全是这条路。</p>
+    </div>
+  </div>
+
+  <h2><span class="n">5</span>一个“顺带的”好处：可解释性</h2>
+  <div class="sec">
+    <p>原文最后一段说：自注意力可能带来更好的可解释性，因为可以检查注意力分布，
+      而且不同头明显学到了不同的任务，很多与句法、语义结构相关。</p>
+    <p>注意它的措辞是 “could yield”——可能。论文附录给了可视化，但<b>没有做任何定量论证</b>。
+      后来的研究也发现：注意力权重高不等于因果重要，不能直接当解释用。</p>
+    <div class="note warn">
+      <p><b>别被二手资料带偏：</b>“Transformer 可解释”是一个常见但过强的说法。
+        正确说法是：它提供了一种<b>可检查的中间量</b>（注意力权重），但这个量是否等于“模型的理由”，仍有争议。</p>
+    </div>
+  </div>
+
+  <div class="summary">
+    <h3>本页要点</h3>
+    <ol>
+      <li>三个标准：每层复杂度、串行操作数、最大路径长度。</li>
+      <li>自注意力 O(n²·d) / O(1) / O(1)；RNN O(n·d²) / O(n) / O(n)；CNN O(k·n·d²) / O(1) / O(log<sub>k</sub> n)。</li>
+      <li>谁更省取决于 n 与 d 的大小：n &lt; d 时自注意力更便宜，这也符合翻译任务的实际情况。</li>
+      <li>代价是平方复杂度，作者自己提出了“受限自注意力”作为长序列的出路。</li>
+      <li>可解释性只是“可能”，论文没有论证，不能当成结论。</li>
+    </ol>
+  </div>
+
+  <h2><span class="n">6</span>自测</h2>
+  <div class="quiz">
+    <div class="qz">
+      <div class="q"><i>Q1</i>d=512、n=256 时，自注意力和循环网络谁的每层计算量更大？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>自注意力更大</span></button>
+        <button class="opt" data-ok="1"><i>B</i><span>循环网络更大（n²·d = 33.5M vs n·d² = 67.1M）</span></button>
+        <button class="opt"><i>C</i><span>一样</span></button>
+      </div>
+      <div class="ex">256²×512 ≈ 33.5M，256×512² ≈ 67.1M。n &lt; d 时自注意力更省，分界点正是 n = d。</div>
+    </div>
+    <div class="qz">
+      <div class="q"><i>Q2</i>“串行操作数 O(1)” 意味着什么？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>总计算量是常数</span></button>
+        <button class="opt" data-ok="1"><i>B</i><span>不存在必须按顺序执行的依赖链，所有位置可同时计算</span></button>
+        <button class="opt"><i>C</i><span>只需要一层网络</span></button>
+      </div>
+      <div class="ex">它衡量的是依赖深度，不是工作量。自注意力的依赖深度是 1，但工作量是 n²·d。</div>
+    </div>
+    <div class="qz">
+      <div class="q"><i>Q3</i>论文对“长序列”提出的折中方案是？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>改用 RNN</span></button>
+        <button class="opt" data-opt="1" data-ok="1"><i>B</i><span>受限自注意力：每个位置只看邻域 r，路径长度变为 O(n/r)</span></button>
+        <button class="opt"><i>C</i><span>减少注意力头数</span></button>
+      </div>
+      <div class="ex">表 1 第 4 行。用局部性换线性复杂度，代价是路径变长。后来的稀疏注意力、滑窗注意力都是这个思路。</div>
+    </div>
+  </div>
+
+  <div class="cite">
+    <b>原文出处</b>
+    §4 Why Self-Attention（三个评判标准、表 1、n 与 d 的比较、受限自注意力的未来工作、可解释性讨论）；
+    §2 关于卷积路径长度的说明。
+  </div>
+
+  <div id="termIndex"></div>
+</main>
+<script src="assets/course.js"></script>
+</body>
+</html>

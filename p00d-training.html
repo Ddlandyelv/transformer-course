@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page="start4">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>模型怎么"学"：一次训练里发生的事 · Transformer 精读</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<main class="doc" id="doc">
+
+  <header class="lesson-head">
+    <div class="kicker"><span class="sec-no">0.4</span><span>第零幕 · 从零开始</span><span>·</span><span>HOW IT LEARNS</span></div>
+    <h1>模型怎么"学"：一次训练里发生的事</h1>
+    <p class="lede">0.2 讲了零件长什么样，这一页讲这些零件上的数字是<b>怎么被调对的</b>。
+      全程只用一张三个词的词表，把损失、梯度、学习率、批次、轮次全部算成具体数字。
+      读完这一页，论文 §5 那一堆超参数就不再是密码。</p>
+    <div class="meta-row">
+      <span class="pill acc">前置：0.2 一个神经元</span>
+      <span class="pill">用于：§5 训练、§3.4 Softmax</span>
+      <span class="pill">约 <b>24</b> 分钟</span>
+    </div>
+  </header>
+
+  <div class="whybox">
+    <div class="whybox-h">为什么学这一页</div>
+    <div class="whybox-g">
+      <div class="wide"><b>论文位置</b><span>§5 全章（优化器、学习率、dropout、标签平滑）</span></div>
+      <div><b>不学卡在哪</b><span>§5 那一串超参数（β₁=0.9、warmup=4000、P_drop=0.1）看不出哪个重要、为什么是这个值。</span></div>
+      <div><b>它解决什么</b><span>理解“训练”这个动作，才能理解论文为什么反复强调训练成本和收敛速度。</span></div>
+    </div>
+  </div>
+
+  <h2><span class="n">1</span>训练就是四步，一直转圈</h2>
+  <div class="sec">
+    <p>整篇论文的 §5 讲的全是这四个动作用的什么参数、什么技巧。动作本身很简单：</p>
+    <table class="tb">
+      <thead><tr><th style="width:12%">步</th><th style="width:20%">名字</th><th style="width:34%">做什么</th><th>产出</th></tr></thead>
+      <tbody>
+        <tr><td><b>1</b></td><td>前向传播<br><i>forward</i></td><td>把一批输入喂进去，一层层算到输出</td><td>一组预测分数</td></tr>
+        <tr><td><b>2</b></td><td>算损失<br><i>loss</i></td><td>拿预测和正确答案比，算出一个数</td><td>一个数字（越小越好）</td></tr>
+        <tr><td><b>3</b></td><td>反向传播<br><i>backward</i></td><td>从损失往回推，算出每个参数该往哪边调</td><td>每个参数一个梯度</td></tr>
+        <tr><td><b>4</b></td><td>更新参数<br><i>update</i></td><td>每个参数朝梯度方向挪一小步</td><td>新的参数</td></tr>
+      </tbody>
+    </table>
+    <p>然后回到第 1 步，换一批数据，继续。论文的 base 模型把这一圈转了 <b>10 万次</b>（§5.2）。</p>
+  </div>
+
+  <h2><span class="n">2</span>第 2 步展开：损失到底怎么算</h2>
+  <div class="sec">
+    <p>假设词表里只有三个词：<b>猫、狗、鱼</b>。模型看完上半句，要给下一个词打分。</p>
+
+    <h3>先看模型吐出什么</h3>
+    <p>模型最后输出的不是概率，是三个任意的分数（叫 logits）：</p>
+    <table class="tb">
+      <thead><tr><th style="width:30%">词</th><th style="width:20%">原始分数</th><th>含义</th></tr></thead>
+      <tbody>
+        <tr><td>猫</td><td>2.0</td><td>模型觉得最可能</td></tr>
+        <tr><td>狗</td><td>1.0</td><td>次之</td></tr>
+        <tr><td>鱼</td><td>0.1</td><td>几乎排除</td></tr>
+      </tbody>
+    </table>
+
+    <h3>再用 softmax 变成概率</h3>
+    <p>分数不能直接用（可能有负数、加起来也不等于 1）。softmax 做两件事：先取指数把负数变正、再归一化让总和为 1。</p>
+    <div class="q">e^2.0 = 7.389　　e^1.0 = 2.718　　e^0.1 = 1.105<br>总和 = 11.212</div>
+    <table class="tb">
+      <thead><tr><th style="width:30%">词</th><th>概率</th><th>算式</th></tr></thead>
+      <tbody>
+        <tr><td>猫</td><td><b>65.9%</b></td><td>7.389 ÷ 11.212</td></tr>
+        <tr><td>狗</td><td><b>24.2%</b></td><td>2.718 ÷ 11.212</td></tr>
+        <tr><td>鱼</td><td><b>9.9%</b></td><td>1.105 ÷ 11.212</td></tr>
+      </tbody>
+    </table>
+    <p>三项加起来正好 100%。<b>这个"和为 1"的性质，是 softmax 唯一必须做到的事。</b></p>
+
+    <h3>最后算损失：只看正确答案那一项</h3>
+    <div class="def">
+      <div class="def-h"><b>交叉熵损失</b><i>cross-entropy loss</i><span class="loc">§5.4 提到标签平滑作用于它</span></div>
+      <p><b>公式：</b><code>loss = −log( P(正确答案) )</code>。只取正确答案对应的那个概率，取对数再取负。</p>
+      <p><b>它输出的数：</b>正确答案的概率越高，损失越小；概率越低，损失越大，而且是<b>指数级</b>变大。</p>
+      <div class="x">易错：损失<b>不看</b>错误选项的概率。模型给"猫"90%、"狗"5%、"鱼"5%，和给"猫"90%、"鱼"9%、"狗"1%，只要正确答案是猫，损失完全一样。错误选项之间的分配由别的东西（比如标签平滑）来管。</div>
+    </div>
+
+    <table class="tb">
+      <thead><tr><th style="width:26%">如果正确答案是</th><th style="width:22%">模型给它的概率</th><th style="width:22%">损失 = −log(P)</th><th>感受</th></tr></thead>
+      <tbody>
+        <tr><td>猫</td><td>65.9%</td><td><b>0.42</b></td><td>还行，但不够自信</td></tr>
+        <tr><td>狗</td><td>24.2%</td><td><b>1.42</b></td><td>错得明显</td></tr>
+        <tr><td>鱼</td><td>9.9%</td><td><b>2.31</b></td><td>错得离谱，罚得很重</td></tr>
+      </tbody>
+    </table>
+    <p>这就是交叉熵的脾气：<b>它不关心你答对了多少，只关心你给正确答案留了多少位置。</b>
+      概率从 0.66 掉到 0.10，损失从 0.42 涨到 2.31，翻了五倍多。</p>
+    <div class="note">
+      <p><b>为什么用 log 而不是直接用 (1 − P)？</b>因为 log 在 P 接近 0 时增长极快，能给"错得离谱"的预测施加巨大惩罚，逼模型快速纠正。
+        如果用 1−P，哪怕 P 只有 1%，损失也只有 0.99，梯度太小，学得很慢。</p>
+    </div>
+  </div>
+
+  <h2><span class="n">3</span>第 3 步展开：梯度是什么</h2>
+  <div class="sec">
+    <div class="def">
+      <div class="def-h"><b>梯度</b><i>gradient</i><span class="loc">§5.3 由 Adam 使用</span></div>
+      <p><b>一句话：</b>对每一个参数问一句"如果我把你稍微调大一点，损失会变大还是变小？变多少？"，这个答案就是梯度。</p>
+      <p><b>正负号的含义：</b>梯度为正 → 调大这个参数会让损失<b>上升</b>，所以应该<b>调小</b>；梯度为负 → 调大它损失会下降，应该<b>调大</b>。</p>
+      <p><b>为什么能算出来：</b>整个网络是一长串确定的加减乘除，每一步都可导。从损失出发，按链式法则一层层往回乘，就能得到每个参数的梯度。这就是<b>反向传播</b>。</p>
+      <div class="x">易错：梯度不是"应该调多少"，而是"损失对这个参数有多敏感"。调多少还要乘上学习率。梯度很大只说明方向明确、坡度陡，不说明该走多远。</div>
+    </div>
+    <p>用上面的例子：正确答案是"狗"，但模型只给了 24.2%。反向传播会算出——
+      <b>"狗的分数"这一路的参数，梯度是负的</b>，意味着把它们调大能让损失下降；
+      <b>"猫的分数"这一路的参数，梯度是正的</b>，意味着该把它们调小。</p>
+    <p>注意这里没有"知道猫是错的"这种语义判断，纯粹是数值上的："狗的概率每提高一点，−log(P狗) 就下降一点"。</p>
+  </div>
+
+  <h2><span class="n">4</span>第 4 步展开：学习率决定走多远</h2>
+  <div class="sec">
+    <div class="def">
+      <div class="def-h"><b>学习率</b><i>learning rate，记作 η 或 lr</i><span class="loc">§5.3 式(3) 的 lr</span></div>
+      <p><b>做什么：</b>参数更新的步长。新参数 = 旧参数 − 学习率 × 梯度。</p>
+      <p><b>太大会怎样：</b>一步跨过最低点，跑到对面更高的地方，来回震荡甚至数值爆炸（损失变成 NaN）。</p>
+      <p><b>太小会怎样：</b>每一步挪一点点，10 万步也走不到该去的位置，训练慢到不可接受。</p>
+      <div class="x">易错：学习率不是常数。论文用的是一种先升后降的调度（warmup），第 15 页会把这根曲线完整画出来。</div>
+    </div>
+    <p>用具体数字感受一下"直接乘"的问题。假设某个参数的梯度是 0.8：</p>
+    <table class="tb">
+      <thead><tr><th style="width:26%">学习率</th><th style="width:30%">这一步挪多少</th><th>后果</th></tr></thead>
+      <tbody>
+        <tr><td>0.0001</td><td>0.00008</td><td>要挪 10 万步才能挪 8 个单位，几乎等于没动</td></tr>
+        <tr><td>0.01</td><td>0.008</td><td>合适</td></tr>
+        <tr><td>1.0</td><td>0.8</td><td>步子过大，容易在最低点两侧来回跳</td></tr>
+        <tr><td>100</td><td>80</td><td>直接把参数甩飞，损失变 NaN</td></tr>
+      </tbody>
+    </table>
+    <div class="def">
+      <div class="def-h"><b>Adam</b><i>adaptive moment estimation</i><span class="loc">§5.3 "We used the Adam optimizer"</span></div>
+      <p><b>它比"直接乘梯度"多做什么：</b>给每个参数单独维护一个"最近梯度有多大"的记录，梯度大的参数步子自动缩小，梯度小的参数步子自动放大。</p>
+      <p><b>为什么有用：</b>同一个模型里，有的参数梯度长期很大、有的长期很小。用统一学习率，大的会震荡、小的学不动。Adam 把这件事按参数分别处理。</p>
+      <p><b>论文的设置：</b>β₁ = 0.9、β₂ = 0.98、ε = 10⁻⁹（§5.3）。这三个数是 Adam 的内部超参数，不影响你理解主流程。</p>
+    </div>
+  </div>
+
+  <h2><span class="n">5</span>批次与轮次：为什么不是一句一句学</h2>
+  <div class="sec">
+    <div class="def">
+      <div class="def-h"><b>批次</b><i>batch</i><span class="loc">§5.1 约 25000 源词元 + 25000 目标词元</span></div>
+      <p><b>是什么：</b>一次前向/反向同时处理的一组样本，不是一条。</p>
+      <p><b>为什么：</b>两个原因。一是<b>效率</b>——GPU 擅长同时算一大批，一条一条算等于浪费。二是<b>稳定</b>——单条样本的梯度噪声很大，一批平均之后方向更可靠。</p>
+      <p><b>论文的数：</b>一个批次大约包含 25000 个源语言词元 + 25000 个目标语言词元（不是 25000 句，是 25000 个词块）。</p>
+      <div class="x">易错：批次越大越好是个误解。批次太大显存吃不下，而且梯度太"平滑"，反而可能掉进不好的解。这是个要调的参数。</div>
+    </div>
+    <div class="def">
+      <div class="def-h"><b>轮次</b><i>epoch</i><span class="loc">本文按"步数"计，不按轮次</span></div>
+      <p><b>是什么：</b>把整个训练集完整过一遍叫一个 epoch。</p>
+      <p><b>本文怎么算：</b>论文不按 epoch 计数，按<b>训练步数</b>（step）。base 模型训 <b>10 万步</b>，big 模型 <b>30 万步</b>。</p>
+      <p><b>为什么用步数：</b>因为一个"步"的计算量是固定的（一个批次），而 epoch 的长度取决于数据集大小，不好跨数据集比较。</p>
+    </div>
+  </div>
+
+  <h2><span class="n">6</span>把一圈完整走完：三个词的例子</h2>
+  <div class="sec">
+    <p>把上面全部串起来。假设模型预测下一个词，正确答案是<b>狗</b>，当前参数给狗的分数是 1.0。</p>
+    <div class="op">
+      <div class="op-h"><span class="i">→</span>这一圈发生了什么</div>
+      <div class="op-b">
+        <dl class="op-f"><dt>前向</dt><dd>三个分数 2.0 / 1.0 / 0.1 → softmax → 猫 65.9%、狗 24.2%、鱼 9.9%</dd></dl>
+        <dl class="op-f"><dt>损失</dt><dd>−log(0.242) = <b>1.42</b>。模型不太有把握，罚得不轻。</dd></dl>
+        <dl class="op-f"><dt>梯度</dt><dd>算出来："狗的分数"梯度为负（该调高），"猫的分数"梯度为正（该调低）。</dd></dl>
+        <dl class="op-f"><dt>更新</dt><dd>设学习率 0.1，狗的分数 1.0 → 约 <b>1.3</b>；猫的分数 2.0 → 约 <b>1.8</b>。</dd></dl>
+        <dl class="op-f"><dt>下一圈</dt><dd>重算 softmax：猫 54.6%、狗 33.4%、鱼 12.0%。损失的 log(0.334) = <b>1.10</b>，比 1.42 小了。</dd></dl>
+        <dl class="op-f"><dt>结论</dt><dd>模型确实在变好。这个过程重复 10 万次，损失从最初的 4 点几降到 1 以下。</dd></dl>
+      </div>
+    </div>
+    <p>注意这里的"学"非常机械：<b>它不知道"狗"是什么，只知道"把狗的概率往上推会让这个数字变小"。</b>
+      所有关于语言的知识，都是从几十万次这样的机械调整里长出来的。</p>
+  </div>
+
+  <h2><span class="n">7</span>训练会出的问题：背下来，而不是学会</h2>
+  <div class="sec">
+    <div class="def">
+      <div class="def-h"><b>过拟合</b><i>overfitting</i><span class="loc">§5.4 用 dropout 与标签平滑对抗</span></div>
+      <p><b>现象：</b>训练集上的损失一直在降，但在没见过的数据上表现变差。模型"背住了"训练集，没学到通用规律。</p>
+      <p><b>为什么大模型特别容易犯：</b>6500 万个参数，如果数据不够多，它完全有能力把训练集逐条记住。记住的代价就是丧失了泛化。</p>
+      <p><b>怎么发现：</b>必须有<b>验证集</b>——留一部分数据不参与训练，只看它的表现。训练损失降、验证损失升，就是过拟合开始了。</p>
+    </div>
+    <div class="def">
+      <div class="def-h"><b>dropout</b><i>丢弃法</i><span class="loc">§5.4，P_drop = 0.1</span></div>
+      <p><b>做什么：</b>训练时随机把一部分神经元的输出<b>直接置零</b>，每次随机关掉 10%。</p>
+      <p><b>为什么有用：</b>逼模型不能依赖某几个特定神经元，每个特征都得"自己站得住"。相当于同时训练了很多个子网络，推理时再合起来。</p>
+      <p><b>关键细节：</b>只在<b>训练时</b>开，推理时关闭（否则输出会随机抖动）。论文在三个位置用它：子层输出、嵌入相加之后、位置编码相加之后。</p>
+      <div class="x">易错：dropout 会让训练损失偏高、训练变慢，这是正常的。不要因为它"看起来效果变差"就关掉。</div>
+    </div>
+    <div class="def">
+      <div class="def-h"><b>标签平滑</b><i>label smoothing</i><span class="loc">§5.4，ε_ls = 0.1</span></div>
+      <p><b>做什么：</b>训练时不再要求模型"给正确答案 100% 概率"，而是只要求约 <b>90%</b>，把剩下 10% 摊给其他词。</p>
+      <p><b>为什么有用：</b>"100% 自信"需要把分数推到无穷大，这会让模型变得过度自信、也更脆弱。留一点余地，泛化更好。</p>
+      <p><b>代价：</b>它会让困惑度（perplexity）变差，但 BLEU 反而变好——因为翻译质量不完全等于"对下一个词有多自信"。这个反直觉的现象，论文 §6.1 专门提了一句。</p>
+    </div>
+  </div>
+
+  <h2><span class="n">8</span>小结</h2>
+  <div class="sec">
+    <div class="summary">
+      <h3>本页要点</h3>
+      <ol>
+        <li>训练 = <b>前向 → 算损失 → 反向求梯度 → 按学习率更新</b>，转 10 万圈。</li>
+        <li><b>损失</b>只看正确答案那一项：<code>−log P(正确)</code>。给正确答案留的位置越少，罚得越狠，且是指数级。</li>
+        <li><b>梯度</b>是"损失对某个参数有多敏感"，不是"该调多少"；正负号决定调大还是调小。</li>
+        <li><b>学习率</b>决定走多远。太大震荡爆炸，太小学不动。论文用的是先升后降的 warmup 调度。</li>
+        <li><b>批次</b>为了效率和梯度稳定；<b>步数</b>是计量单位，base 10 万步、big 30 万步。</li>
+        <li><b>过拟合</b>是必然风险，用 dropout（0.1）和标签平滑（0.1）压制，靠验证集发现。</li>
+      </ol>
+    </div>
+  </div>
+
+  <h2><span class="n">9</span>自测</h2>
+  <div class="quiz">
+    <div class="qz">
+      <div class="q"><i>Q1</i>模型给正确答案的概率是 0.5，交叉熵损失约是多少？（ln2 ≈ 0.693）</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>0.5</span></button>
+        <button class="opt" data-ok="1"><i>B</i><span>0.69</span></button>
+        <button class="opt"><i>C</i><span>1.5</span></button>
+      </div>
+      <div class="ex">−log(0.5) = −(−0.693) = 0.693。记住两个基准：概率 0.5 → 损失 0.69；概率 0.1 → 损失 2.30。</div>
+    </div>
+    <div class="qz">
+      <div class="q"><i>Q2</i>某个参数的梯度是 <b>−0.4</b>，学习率 0.1。按梯度下降，这个参数应该？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>减小 0.04</span></button>
+        <button class="opt" data-ok="1"><i>B</i><span>增大 0.04</span></button>
+        <button class="opt"><i>C</i><span>减小 0.4</span></button>
+      </div>
+      <div class="ex">更新式是 新 = 旧 − 学习率 × 梯度 = 旧 − 0.1×(−0.4) = 旧 + 0.04。梯度为负表示"调大它损失会下降"，所以要调大。负负得正，这是最容易记反的地方。</div>
+    </div>
+    <div class="qz">
+      <div class="q"><i>Q3</i>关于 dropout，说法正确的是？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>训练和推理时都要开启，效果才一致</span></button>
+        <button class="opt" data-ok="1"><i>B</i><span>只在训练时随机置零部分神经元，推理时必须关闭</span></button>
+        <button class="opt"><i>C</i><span>它是用来加速训练的，不影响效果</span></button>
+      </div>
+      <div class="ex">dropout 是正则化手段，目的是防止过拟合。推理时若还随机丢，输出就会每次不一样；所以推理阶段关闭（或按比例缩放），保证结果确定。</div>
+    </div>
+    <div class="qz">
+      <div class="q"><i>Q4</i>训练损失持续下降、验证损失开始上升，说明？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>学习率太小，需要调大</span></button>
+        <button class="opt" data-ok="1"><i>B</i><span>开始过拟合，模型在背训练集</span></button>
+        <button class="opt"><i>C</i><span>批次太小，需要增大批次</span></button>
+      </div>
+      <div class="ex">这是过拟合的典型信号。两条曲线分叉的那一刻，就是泛化开始变差的时刻。对策是早停、加正则（dropout、权重衰减）、或增加数据。</div>
+    </div>
+    <div class="qz">
+      <div class="q"><i>Q5</i>论文里为什么用"训练步数"而不是"epoch"来计量训练长度？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>因为数据集只够跑不到一个 epoch</span></button>
+        <button class="opt" data-ok="1"><i>B</i><span>因为一步的计算量固定（一个批次），跨数据集可比；epoch 长度随数据集大小变化</span></button>
+        <button class="opt"><i>C</i><span>因为 epoch 这个词在 2017 年还没出现</span></button>
+      </div>
+      <div class="ex">一步 = 一个固定大小的批次，算力可预测、可跨实验比较。而"一遍数据集"在 450 万句和 3600 万句上完全不是一个量级。</div>
+    </div>
+  </div>
+
+  <div class="cite">
+    <b>原文出处</b>
+    §5.1 批次构成（约 25000 源词元 + 25000 目标词元）；§5.2 硬件与训练步数（base 10 万步 / big 30 万步）；
+    §5.3 优化器（Adam，β₁=0.9、β₂=0.98、ε=10⁻⁹）与学习率调度（式 3）；§5.4 正则化（dropout 0.1、标签平滑 0.1）。
+  </div>
+
+  <div id="termIndex"></div>
+</main>
+<script src="assets/course.js"></script>
+</body>
+</html>

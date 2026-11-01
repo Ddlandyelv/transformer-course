@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page="math">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>向量、矩阵与点积 · Transformer 精读</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<main class="doc" id="doc">
+
+  <header class="lesson-head">
+    <div class="kicker"><span class="sec-no">01</span><span>前置知识</span><span>·</span><span>MATH</span></div>
+    <h1>向量、矩阵与点积</h1>
+    <p class="lede">Transformer 里 95% 的计算是矩阵乘法。如果 <code>QK<sup>T</sup></code> 对你来说是一串看不懂的符号，
+      这一页会把它拆成“一堆数相乘再相加”这么简单的事。</p>
+    <div class="meta-row">
+      <span class="pill acc">前置：无</span>
+      <span class="pill">用于：第 08 页 注意力</span>
+      <span class="pill">约 <b>20</b> 分钟</span>
+    </div>
+  </header>
+
+  <div class="whybox">
+    <div class="whybox-h">为什么学这一页</div>
+    <div class="whybox-g">
+      <div class="wide"><b>论文位置</b><span>§3.2.1 式(1) 的 QKᵀ；§3.3 式(2) 的 xW</span></div>
+      <div><b>不学卡在哪</b><span>看到 Q·Kᵀ 不知道在算什么；不知道 512×2048 的矩阵为什么这样写。</span></div>
+      <div><b>它解决什么</b><span>注意力与 FFN 的全部运算都是矩阵乘法，不熟就没法验算论文里的任何一个数字。</span></div>
+    </div>
+  </div>
+
+  <h2><span class="n">1</span>为什么读论文前必须先懂这些</h2>
+  <div class="sec">
+    <p>论文里最核心的公式只有一行：</p>
+    <div class="fm">
+      <span class="c">Attention</span>(<span class="v">Q</span>, <span class="v">K</span>, <span class="v">V</span>)
+      <span class="op">=</span> <span class="c">softmax</span>(<span class="v">QK</span><sup>T</sup> / √<span class="v">d</span><sub>k</sub>)<span class="v">V</span>
+      <span class="cap">论文式 (1)</span>
+    </div>
+    <p>这一行里出现了三个数学动作：<b>矩阵乘法</b>（<code>QK<sup>T</sup></code>）、<b>转置</b>（上标 T）、
+      <b>逐元素缩放</b>（除以 √d<sub>k</sub>）。如果不知道矩阵乘法的形状规则，你就无法判断
+      <code>QK<sup>T</sup></code> 会得到一个什么样的东西——而它的形状（n×n）恰恰是理解“每个词和每个词打分”的关键。</p>
+    <p>所以本页的目标很具体：<b>让你能亲手算出 <code>QK<sup>T</sup></code> 里的任意一个数</b>，并且知道它的行列分别代表什么。</p>
+  </div>
+
+  <h2><span class="n">2</span>向量：一个词就是一组数</h2>
+  <div class="sec">
+    <div class="def">
+      <div class="def-h"><b>向量</b><i>vector</i><span class="loc">§3.4</span></div>
+      <p><b>是什么：</b>一串有序的数，写在方括号里，例如 <code>[0.2, −1.3, 0.7, 0.0]</code>。
+        每个位置叫一个<b>分量</b>（component），分量的个数叫<b>维度</b>。</p>
+      <p><b>为什么需要：</b>神经网络只认数字。要把“动物”这个词喂给模型，必须先把它变成一组数。
+        这组数就是这个词的“坐标”——意思相近的词，坐标也相近。</p>
+      <p><b>论文里的样子：</b>每个词元都被表示成一个 512 维向量（base 模型）。一句话有 10 个词，
+        就是 10 个 512 维向量，堆在一起是一个 10×512 的矩阵。</p>
+      <div class="x">易错：向量的“维度”和矩阵的“维度”不是一回事。向量的维度 = 分量个数（如 512）；
+        矩阵说维度时通常给两个数（如 10×512 = 行数×列数）。读论文时看到 d<sub>model</sub>=512，指的是<b>列数</b>。</div>
+    </div>
+
+    <h3>一个具体的例子</h3>
+    <p>假设我们只用 4 维来表示词（论文是 512 维，这里缩小到 4 维方便手算）：</p>
+    <div class="fm" style="font-size:15px">
+      <span class="v">猫</span> = [0.9, −0.2, 0.4, 0.1] &nbsp;&nbsp;·&nbsp;&nbsp;
+      <span class="v">狗</span> = [0.8, −0.1, 0.5, 0.0] &nbsp;&nbsp;·&nbsp;&nbsp;
+      <span class="v">汽车</span> = [−0.7, 0.6, 0.1, 0.8]
+    </div>
+    <p>猫和狗的向量很接近（每一格都差不多），汽车则差别很大。这就是“词义被编码进了数字”的直观含义。
+      注意：每一格具体代表什么，人类是读不出来的——它是模型自己学出来的抽象特征。</p>
+  </div>
+
+  <h2><span class="n">3</span>点积：注意力打分的唯一工具</h2>
+  <div class="sec">
+    <div class="def">
+      <div class="def-h"><b>点积</b><i>dot product · 内积</i><span class="loc">§3.2.1</span></div>
+      <p><b>是什么：</b>两个<b>长度相同</b>的向量，对应位置相乘，再把所有乘积加起来，得到一个<b>数</b>（标量）。</p>
+      <p><b>公式：</b><code>a · b = a₁b₁ + a₂b₂ + … + aₙbₙ</code></p>
+      <p><b>为什么需要：</b>它是衡量“两个向量有多相似”最便宜的办法。结果越大，方向越一致；
+        等于 0 说明两者垂直（无关）；为负数说明方向相反。</p>
+      <div class="x">易错：点积要求两个向量<b>维度完全相同</b>。3 维向量不能和 4 维向量做点积。
+        另外别把点积和“逐元素相乘”搞混——后者得到的是向量，不是数。</div>
+    </div>
+
+    <div class="op">
+      <div class="op-h"><span class="i">1</span>手算一次点积<span class="tg">4 步</span></div>
+      <div class="op-b">
+        <dl class="op-f"><dt>输入</dt><dd>向量 a = [2, 0, 1]，向量 b = [1, 3, 2]</dd></dl>
+        <dl class="op-f"><dt>条件</dt><dd>两者维度必须相同（这里都是 3 维）。不相同就无法计算，这是硬性前提。</dd></dl>
+        <dl class="op-f"><dt>步骤 1</dt><dd>把两个向量按位置对齐：<code>(2,1) (0,3) (1,2)</code></dd></dl>
+        <dl class="op-f"><dt>步骤 2</dt><dd>逐对相乘：<code>2×1=2</code>，<code>0×3=0</code>，<code>1×2=2</code></dd></dl>
+        <dl class="op-f"><dt>步骤 3</dt><dd>把所有乘积相加：<code>2 + 0 + 2 = 4</code></dd></dl>
+        <dl class="op-f"><dt>结果</dt><dd>点积 = <b>4</b>。这是一个数，不是向量。</dd></dl>
+        <dl class="op-f err"><dt>易错</dt><dd>漏掉某一维（尤其是 0 的那一维）；把“相加”写成“相乘”；负数符号丢掉。
+          <code>0×3</code> 的贡献是 0，但<b>不能不写</b>——它参与了求和的位置对齐。</dd></dl>
+      </div>
+    </div>
+
+    <div class="demo" data-w="dot"></div>
+
+    <h3>为什么“点积大”等于“相关”</h3>
+    <p>几何上有恒等式：<code>a · b = |a| × |b| × cos θ</code>，θ 是两个向量的夹角。
+      当两个向量方向一致（θ=0），cos θ=1，点积达到最大；垂直时 cos θ=0，点积为 0。
+      所以点积本质上是在问：<b>这两个向量的方向有多一致？</b></p>
+    <p>注意它同时受“长度”影响：一个很长的向量即使方向偏一点，点积也可能很大。
+      在注意力里这不是问题——因为 Q、K 都是同一套线性变换产出的，尺度大体可控；
+      而且后面还会除以 √d<sub>k</sub> 做校正（见第 08 页）。</p>
+  </div>
+
+  <h2><span class="n">4</span>矩阵：一批向量打包在一起</h2>
+  <div class="sec">
+    <div class="def">
+      <div class="def-h"><b>矩阵</b><i>matrix</i><span class="loc">§3.2.1 Q、K、V</span></div>
+      <p><b>是什么：</b>按行、列排成矩形的数表。形状记作“行数 × 列数”，例如 2×3 表示 2 行 3 列。</p>
+      <p><b>为什么需要：</b>GPU 一次算一个数太浪费。把 n 个词的向量堆成一个 n×d 的矩阵，
+        一次矩阵乘法就能同时处理所有词——这正是 Transformer 能并行的物理基础。</p>
+      <p><b>论文里的样子：</b>一句话 10 个词、每词 512 维，输入就是 10×512 的矩阵 X。
+        <code>Q = XW<sup>Q</sup></code> 一次就得到全部 10 个词的 Q，而不是循环 10 次。</p>
+      <div class="x">易错：矩阵的“第 i 行”通常对应“第 i 个词”，这是本课的约定，也是论文的约定。
+        读代码时如果发现转置过，行和列的含义会互换，务必先确认形状。</div>
+    </div>
+
+    <div class="op">
+      <div class="op-h"><span class="i">2</span>矩阵乘法的机械流程<span class="tg">形状优先</span></div>
+      <div class="op-b">
+        <dl class="op-f"><dt>输入</dt><dd>A（n×k）与 B（k×m）</dd></dl>
+        <dl class="op-f"><dt>条件</dt><dd><b>A 的列数必须等于 B 的行数</b>（都是 k）。不满足就不能乘，这是唯一的合法性检查。</dd></dl>
+        <dl class="op-f"><dt>步骤 1</dt><dd>先算结果的形状：(n×k)·(k×m) → <b>n×m</b>。中间那个 k 被“消掉”。</dd></dl>
+        <dl class="op-f"><dt>步骤 2</dt><dd>结果第 i 行第 j 列 = A 的<b>第 i 行</b> 与 B 的<b>第 j 列</b> 做点积。</dd></dl>
+        <dl class="op-f"><dt>步骤 3</dt><dd>对每个 (i, j) 重复，共 n×m 次点积。每次点积做 k 次乘加。</dd></dl>
+        <dl class="op-f"><dt>结果</dt><dd>一个 n×m 的新矩阵。</dd></dl>
+        <dl class="op-f err"><dt>易错</dt><dd>① 忘了检查中间维度是否相等；② 把“行乘列”写成“行乘行”；
+          ③ 以为 AB = BA（矩阵乘法<b>不满足交换律</b>，交换后甚至形状都不合法）；
+          ④ 在注意力里把 QK<sup>T</sup> 写成 KQ<sup>T</sup>——形状会变成 m×n，行列含义完全反了。</dd></dl>
+      </div>
+    </div>
+
+    <div class="demo" data-w="matmul"></div>
+  </div>
+
+  <h2><span class="n">5</span>转置：为什么偏偏是 QK<sup>T</sup></h2>
+  <div class="sec">
+    <div class="def">
+      <div class="def-h"><b>转置</b><i>transpose</i><span class="loc">§3.2.1 式(1)</span></div>
+      <p><b>是什么：</b>把矩阵的行和列对调，记作上标 T。原来的第 i 行变成第 i 列。
+        形状从 n×k 变成 k×n。</p>
+      <p><b>为什么需要：</b>Q 是 n×d<sub>k</sub>，K 也是 n×d<sub>k</sub>。两个都是“行=词、列=特征”，
+        直接乘不合法（列数 d<sub>k</sub> ≠ 行数 n）。把 K 转置成 d<sub>k</sub>×n 之后，
+        <b>Q(n×d<sub>k</sub>) · K<sup>T</sup>(d<sub>k</sub>×n) = n×n</b>，中间维度对上了。</p>
+      <p><b>结果的形状说明了什么：</b>n×n 的矩阵，第 i 行第 j 列 = 第 i 个词的 Query 与第 j 个词的 Key 的点积。
+        也就是“第 i 个词给第 j 个词打的分”。<b>每一行是一个词的完整注意力分布</b>。</p>
+      <div class="x">易错：<code>QK<sup>T</sup></code> 的第 i 行第 j 列，是“i 看 j”，不是“j 看 i”。
+        方向搞反会导致后面所有解释都错位。</div>
+    </div>
+
+    <div class="note">
+      <p><b>把公式读成一句话：</b><code>QK<sup>T</sup></code> 得到“词 × 词”的分数表 → 除以 √d<sub>k</sub> 压小数值 →
+        softmax 把每行变成总和为 1 的百分比 → 乘 V 按百分比取信息。四个动作，四个形状，缺一不可。</p>
+    </div>
+  </div>
+
+  <h2><span class="n">6</span>线性变换：矩阵就是“可学习的加工方式”</h2>
+  <div class="sec">
+    <div class="def">
+      <div class="def-h"><b>线性变换 / 线性层</b><i>linear transformation</i><span class="loc">§3.2.2；§3.3</span></div>
+      <p><b>是什么：</b><code>y = xW + b</code>。x 是输入向量，W 是一个矩阵（<b>权重</b>），b 是偏置向量。
+        整件事就是一次矩阵乘法加一次加法。</p>
+      <p><b>为什么需要：</b>它能把 512 维的“通用词向量”转换成特定用途的表示。
+        注意力里用三个不同的 W，就把同一个词向量变出 Q、K、V 三种角色。</p>
+      <p><b>W 从哪来：</b>不是人设计的，是训练出来的。初始随机，通过梯度下降一点点调整（见第 02 页）。
+        论文中 <code>W<sup>Q</sup></code> 形状是 512×64（多头的每一头）。</p>
+      <div class="x">易错：线性变换<b>不会</b>改变“词与词之间的关系结构”以外的东西——它不做非线性弯折。
+        这也是为什么必须有 ReLU（第 11 页）：只堆线性层，等于一层。</div>
+    </div>
+  </div>
+
+  <div class="summary">
+    <h3>本页要点</h3>
+    <ol>
+      <li>向量是一串数；维度 = 分量个数；一个词 = 一个 512 维向量。</li>
+      <li>点积 = 对应位置相乘再求和，得到一个数，衡量两个向量的方向一致性。</li>
+      <li>矩阵乘法 = “左行 · 右列”逐格点积；形状规则 (n×k)(k×m)=(n×m)，中间维度必须相同。</li>
+      <li>转置把行变列。<code>QK<sup>T</sup></code> 的形状是 n×n，第 i 行 = 第 i 个词的注意力分布。</li>
+      <li>线性层 = 矩阵乘法 + 偏置，矩阵参数由训练得到。</li>
+    </ol>
+  </div>
+
+  <h2><span class="n">7</span>自测</h2>
+  <div class="quiz">
+    <div class="qz">
+      <div class="q"><i>Q1</i>向量 a=[1,2,0] 与 b=[3,0,4] 的点积是多少？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>3</span></button>
+        <button class="opt" data-ok="1"><i>B</i><span>3（1×3 + 2×0 + 0×4 = 3）</span></button>
+        <button class="opt"><i>C</i><span>7</span></button>
+      </div>
+      <div class="ex">逐对相乘：3、0、0，相加得 3。第二项 2×0 和第三项 0×4 都贡献 0，但位置不能错。</div>
+    </div>
+    <div class="qz">
+      <div class="q"><i>Q2</i>若 Q 的形状是 10×64，K 的形状也是 10×64，那么 <code>QK<sup>T</sup></code> 的形状是？</div>
+      <div class="opts">
+        <button class="opt" data-ok="1"><i>A</i><span>10×10</span></button>
+        <button class="opt"><i>B</i><span>64×64</span></button>
+        <button class="opt"><i>C</i><span>10×64</span></button>
+      </div>
+      <div class="ex">K 转置后是 64×10，(10×64)·(64×10) = 10×10。这个 10×10 就是“10 个词互相打分”的分数表，每行一个词的注意力分布。</div>
+    </div>
+    <div class="qz">
+      <div class="q"><i>Q3</i>下面哪句话是错的？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>矩阵乘法不满足交换律，AB 与 BA 可能形状都不同</span></button>
+        <button class="opt"><i>B</i><span>点积的结果是一个标量</span></button>
+        <button class="opt" data-ok="1"><i>C</i><span>只要两个矩阵元素个数相同，就一定能相乘</span></button>
+      </div>
+      <div class="ex">相乘的条件是“左列数 = 右行数”，与元素总数无关。2×6 和 6×2 能乘，2×6 和 2×6 不能乘。</div>
+    </div>
+  </div>
+
+  <div class="cite">
+    <b>原文出处</b>
+    §3.2.1 Scaled Dot-Product Attention（式 1）；§3.2.2（投影矩阵 W<sup>Q</sup>、W<sup>K</sup>、W<sup>V</sup>）；
+    §3.3（式 2 中的线性变换）；§3.4（嵌入维度 d<sub>model</sub>=512）。
+  </div>
+
+  <div id="termIndex"></div>
+</main>
+<script src="assets/course.js"></script>
+</body>
+</html>

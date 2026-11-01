@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page="seq">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>序列建模与编码器-解码器 · Transformer 精读</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<main class="doc" id="doc">
+
+  <header class="lesson-head">
+    <div class="kicker"><span class="sec-no">03</span><span>前置知识</span><span>·</span><span>SEQ2SEQ</span></div>
+    <h1>序列建模与编码器-解码器</h1>
+    <p class="lede">Transformer 不是凭空出现的。它是为了修掉 RNN 的三个毛病而设计的——
+      不知道那三个毛病是什么，就看不懂论文为什么要这么设计。</p>
+    <div class="meta-row">
+      <span class="pill acc">前置：第 01–02 页</span>
+      <span class="pill">用于：§1、§2、§4</span>
+      <span class="pill">约 <b>25</b> 分钟</span>
+    </div>
+  </header>
+
+  <div class="whybox">
+    <div class="whybox-h">为什么学这一页</div>
+    <div class="whybox-g">
+      <div class="wide"><b>论文位置</b><span>§1 对 RNN 的批评；§3.1 编码器-解码器栈</span></div>
+      <div><b>不学卡在哪</b><span>不懂“编码器把句子压成表示、解码器再展开”这个框架，§3.1 的架构图就看不懂。</span></div>
+      <div><b>它解决什么</b><span>论文沿用了编码器-解码器结构，只把里面的零件换成了注意力，框架本身没动。</span></div>
+    </div>
+  </div>
+
+  <h2><span class="n">1</span>什么叫“序列建模”</h2>
+  <div class="sec">
+    <p>序列就是一串有顺序的东西：一句话、一段语音、一支股票的每日收盘价。
+      <b>序列建模</b>指的是：给定前面的一部分，预测接下来的部分。</p>
+    <p>注意“有顺序”这三个字。如果把一句话打乱成词袋 {动物, 这只, 累, 很}，意思就没了。
+      所以任何序列模型都必须处理<b>顺序</b>——要么靠结构天然带顺序（RNN 一步步读），
+      要么显式注入位置信息（Transformer 的做法，见第 13 页）。</p>
+
+    <div class="def">
+      <div class="def-h"><b>语言模型</b><i>language model</i><span class="loc">§1；§3 第一段</span></div>
+      <p><b>是什么：</b>一个计算“给定前文，下一个词是各个词的概率”的模型：
+        <code>P(w<sub>t</sub> | w<sub>1</sub>, …, w<sub>t−1</sub>)</code>。</p>
+      <p><b>为什么需要：</b>翻译、摘要、问答本质上都是“生成一串词”。只要有了下一个词的概率，
+        就能一个词一个词地把整句写出来。</p>
+      <p><b>训练信号从哪来：</b>不需要人工标注。拿真实文本，把第 t 个词当答案、前 t−1 个词当输入，
+        就叫<b>自监督</b>。这也是为什么这类模型能吃下海量数据。</p>
+      <div class="x">易错：语言模型不是“理解后翻译”，它只是在做概率预测。所谓“理解”，是从预测准确率里涌现出来的副产品。</div>
+    </div>
+  </div>
+
+  <h2><span class="n">2</span>RNN：一步一步读</h2>
+  <div class="sec">
+    <div class="def">
+      <div class="def-h"><b>RNN</b><i>recurrent neural network</i><span class="loc">§1 第一段</span></div>
+      <p><b>是什么：</b>按时间步依次处理序列的网络。它维护一个<b>隐藏状态</b> h，
+        每读一个词就更新一次：<code>h<sub>t</sub> = f(h<sub>t−1</sub>, x<sub>t</sub>)</code>。</p>
+      <p><b>直观理解：</b>像一个人一边读一边在脑子里做笔记。读完“这只动物没有过马路”，
+        笔记里存着“有一只会过马路的动物”；读到“它”时，笔记帮着回忆指的是谁。</p>
+      <p><b>致命约束：</b>h<sub>t</sub> 依赖 h<sub>t−1</sub>，所以第 5 步必须等第 4 步。
+        这在数学上是<b>串行</b>的，无法用并行硬件加速。</p>
+      <div class="x">易错：RNN 并不是“读得慢”，而是<b>不能并行</b>。单步计算很快，但它必须做 n 次，
+        而 GPU 的强项是一次做一万件事。</div>
+    </div>
+
+    <div class="demo" data-w="rnn"></div>
+
+    <div class="op">
+      <div class="op-h"><span class="i">1</span>RNN 处理一句话的完整流程<span class="tg">n 步串行</span></div>
+      <div class="op-b">
+        <dl class="op-f"><dt>输入</dt><dd>词向量序列 x₁, x₂, …, x<sub>n</sub>；初始隐藏状态 h₀（通常全零）</dd></dl>
+        <dl class="op-f"><dt>条件</dt><dd>必须按 t = 1, 2, …, n 的顺序执行，不能跳步</dd></dl>
+        <dl class="op-f"><dt>步骤 1</dt><dd>算 h₁ = f(W·x₁ + U·h₀ + b)</dd></dl>
+        <dl class="op-f"><dt>步骤 2</dt><dd>把 h₁ 与 x₂ 一起送进去，算 h₂</dd></dl>
+        <dl class="op-f"><dt>步骤 3</dt><dd>重复到 h<sub>n</sub>。每个 h<sub>t</sub> 都可以拿去做预测或传给解码器</dd></dl>
+        <dl class="op-f"><dt>结果</dt><dd>n 个隐藏状态；最后一个 h<sub>n</sub> 通常被当作“整句摘要”</dd></dl>
+        <dl class="op-f err"><dt>易错</dt><dd>① 以为可以并行算各步（不行，依赖前一步）；
+          ② 以为 h<sub>n</sub> 保留了全部信息（它是个固定长度向量，长句必然丢东西）。</dd></dl>
+      </div>
+    </div>
+
+    <h3>毛病一：不能并行</h3>
+    <p>假设一句 50 个词。RNN 必须做 50 次串行计算，GPU 的 5000 个核心大部分时间在闲置。
+      训练时更糟：为了让梯度传回去，还得再反向走 50 步。</p>
+    <p>Transformer 的解法是把这条链彻底剪断：所有词同时进入网络，任意两个词之间只隔<b>一次</b>注意力计算。</p>
+
+    <h3>毛病二：长距离依赖会衰减</h3>
+    <p>信息从第 1 个词传到第 50 个词，要经过 49 次“重新编码”。每经过一次都是一个线性变换加激活，
+      信息会被不断改写、稀释。结果是：模型很难学会“第 50 个词指代第 2 个词”这种关系。</p>
+    <p>论文用<b>路径长度</b>（path length）来量化这件事：RNN 的路径长度是 <b>O(n)</b>，
+      自注意力是 <b>O(1)</b>。表 1 就是这个对比。</p>
+
+    <div class="def">
+      <div class="def-h"><b>长距离依赖</b><i>long-range dependency</i><span class="loc">§1；§4</span></div>
+      <p><b>是什么：</b>序列中相隔很远的两个元素之间的关系。例如“它”要指代 20 个词之前的“动物”。</p>
+      <p><b>为什么难：</b>信号要经过很长的一条计算路径才能相遇，路径越长，越容易在传递中丢失。</p>
+      <div class="x">易错：LSTM/GRU 的门控机制只是<b>缓解</b>了衰减，没有消除串行性，路径长度依然是 O(n)。所以它们不是 Transformer 的竞争对手，而是同一个问题的不同妥协。</div>
+    </div>
+  </div>
+
+  <h2><span class="n">3</span>编码器-解码器：翻译的标准框架</h2>
+  <div class="sec">
+    <p>翻译的难点在于输入输出长度不同、词序也不同。2014 年前后定下来的标准解法是把任务拆成两半：</p>
+
+    <div class="def">
+      <div class="def-h"><b>编码器</b><i>encoder</i><span class="loc">§3 第一段；§3.1</span></div>
+      <p><b>是什么：</b>把输入序列 (x₁…x<sub>n</sub>) 读成一个表示 z = (z₁…z<sub>n</sub>)。
+        它的任务只有一个：<b>理解</b>，不生成任何东西。</p>
+      <p><b>在 Transformer 里：</b>6 层堆叠，每层 = 自注意力 + 前馈网络。输出仍然是 n 个向量（每个位置一个）。</p>
+      <div class="x">易错：编码器输出不是“一个向量”，而是<b>n 个向量</b>。早期的 seq2seq 才把它压成一个；Transformer 保留了每个位置的表示，这正是它能做交叉注意力的前提。</div>
+    </div>
+
+    <div class="def">
+      <div class="def-h"><b>解码器</b><i>decoder</i><span class="loc">§3 第一段；§3.1</span></div>
+      <p><b>是什么：</b>根据编码器的表示 z 和已经生成的词，逐个预测下一个词，最终输出序列 (y₁…y<sub>m</sub>)。</p>
+      <p><b>关键性质：</b>它是<b>自回归</b>的——每生成一个词，就把它接到输入末尾，再预测下一个。</p>
+      <div class="x">易错：解码器一次只往前推一个词（推理时）。训练时可以整句并行喂入，但那是靠掩码伪装的并行，见第 10 页。</div>
+    </div>
+
+    <div class="def">
+      <div class="def-h"><b>seq2seq 框架</b><i>sequence-to-sequence</i><span class="loc">§3 第一段</span></div>
+      <p><b>是什么：</b>“编码器 + 解码器”这套组合的统称，用于输入输出都是变长序列的任务（翻译、摘要、对话）。</p>
+      <p><b>历史位置：</b>Sutskever 等人 2014 年提出，之后两年所有翻译系统都长这样。Transformer 没有推翻这个框架，
+        <b>只是把里面的 RNN 换成了注意力</b>——这一点非常重要，论文 §3 的第一句就在强调它沿用了这个结构。</p>
+      <div class="x">易错：Transformer ≠ 编码器-解码器。后来 BERT 只用编码器，GPT 只用解码器，都叫 Transformer。论文原版是完整的编码器-解码器。</div>
+    </div>
+
+    <h3>那个“瓶颈”问题，以及注意力的第一次登场</h3>
+    <p>最早的 seq2seq 把编码器最后一步的隐藏状态 h<sub>n</sub> 当作整句摘要，喂给解码器。
+      问题很明显：一句 50 个词的信息，被硬塞进一个固定长度的向量里，必然丢细节。</p>
+    <p>2015 年 Bahdanau 等人提出：<b>让解码器每一步都回头看一眼编码器的所有隐藏状态</b>，
+      并自动决定该看哪几个。这就是<b>注意力机制</b>的由来——它最初只是一个补丁，用来解决长句翻译的瓶颈。</p>
+    <p>Transformer 的洞察是：既然注意力这么好用，那还要 RNN 干什么？<b>把循环整个删掉，只留注意力。</b>
+      论文标题 “Attention Is All You Need” 说的就是这件事。</p>
+
+    <div class="note">
+      <p><b>因果链条记住这一条就够了：</b>RNN 不能并行且长距离衰减 → 用它做编码器解码器有瓶颈 →
+        加注意力当补丁 → 补丁效果太好 → 干脆把 RNN 删了，全用注意力 → Transformer。</p>
+    </div>
+  </div>
+
+  <h2><span class="n">4</span>三个问题，一张对照表</h2>
+  <div class="tw">
+    <table class="tb">
+      <thead><tr><th>问题</th><th>RNN 的做法</th><th>Transformer 的做法</th><th>代价</th></tr></thead>
+      <tbody>
+        <tr><td><b>能否并行</b></td><td>不能，必须按顺序</td><td>能，所有位置同时算</td><td>需要位置编码补回顺序</td></tr>
+        <tr><td><b>路径长度</b></td><td>O(n)，越远越难学</td><td>O(1)，任意两词直接相连</td><td>—</td></tr>
+        <tr><td><b>计算量</b></td><td>O(n·d²)，与长度线性</td><td>O(n²·d)，与长度平方</td><td>长文本变贵（第 14 页）</td></tr>
+        <tr><td><b>记忆容量</b></td><td>挤压在一个隐藏状态里</td><td>保留每个位置的表示，随时可取</td><td>显存占用随长度增长</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="summary">
+    <h3>本页要点</h3>
+    <ol>
+      <li>语言模型 = 预测下一个词；训练信号来自文本自身，不需要人工标注。</li>
+      <li>RNN 用隐藏状态逐步传递信息，因此<b>无法并行</b>，且路径长度为 O(n)，长距离依赖会衰减。</li>
+      <li>LSTM/GRU 只缓解衰减，没有解决串行性。</li>
+      <li>编码器-解码器把“理解”和“生成”分开；早期瓶颈是把整句压成一个向量。</li>
+      <li>注意力最初是为解决这个瓶颈而加的补丁；Transformer 把它变成唯一的主角。</li>
+    </ol>
+  </div>
+
+  <h2><span class="n">5</span>自测</h2>
+  <div class="quiz">
+    <div class="qz">
+      <div class="q"><i>Q1</i>RNN 无法并行的根本原因是？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>参数量太大，显存不够</span></button>
+        <button class="opt" data-ok="1"><i>B</i><span>第 t 步的隐藏状态依赖第 t−1 步的结果，存在数据依赖</span></button>
+        <button class="opt"><i>C</i><span>词向量的维度太高</span></button>
+      </div>
+      <div class="ex">这是“数据依赖”而不是“算力”问题。只要 h_t 需要 h_{t-1}，就必须等，硬件再强也没用。</div>
+    </div>
+    <div class="qz">
+      <div class="q"><i>Q2</i>论文说自注意力的“最大路径长度是 O(1)”，这句话的意思是？</div>
+      <div class="opts">
+        <button class="opt" data-ok="1"><i>A</i><span>任意两个位置之间的信息传递只需经过固定次数的操作，与距离无关</span></button>
+        <button class="opt"><i>B</i><span>计算一次注意力只需要 1 次浮点运算</span></button>
+        <button class="opt"><i>C</i><span>模型只需要 1 层</span></button>
+      </div>
+      <div class="ex">路径长度衡量“信号要走几步才能从一个位置到另一个位置”。自注意力一步到位，RNN 要走 n 步。路径越短，越容易学长距离关系。</div>
+    </div>
+    <div class="qz">
+      <div class="q"><i>Q3</i>注意力机制最早是为了解决什么问题被提出的？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>为了让模型能并行计算</span></button>
+        <button class="opt" data-ok="1"><i>B</i><span>为了解决 seq2seq 把整句压成一个固定向量造成的瓶颈</span></button>
+        <button class="opt"><i>C</i><span>为了替代 softmax</span></button>
+      </div>
+      <div class="ex">Bahdanau 等人 2015 年提出让解码器回看编码器的所有状态。Transformer 的贡献不是发明注意力，而是证明可以只用注意力。</div>
+    </div>
+  </div>
+
+  <div class="cite">
+    <b>原文出处</b>
+    §1 Introduction（RNN 的串行性与长距离依赖、路径长度）；§2 Background（自注意力的历史、卷积模型对比）；
+    §3 Model Architecture 第一段（编码器-解码器结构、自回归）；§4 表 1（复杂度与路径长度对比）。
+    关于 Bahdanau 注意力，见 Bahdanau, Cho &amp; Bengio (2015), <i>Neural Machine Translation by Jointly Learning to Align and Translate</i>, ICLR。
+  </div>
+
+  <div id="termIndex"></div>
+</main>
+<script src="assets/course.js"></script>
+</body>
+</html>

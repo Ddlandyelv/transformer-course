@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page="start5">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>为什么需要注意力：一句话不是一堆词 · Transformer 精读</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<main class="doc" id="doc">
+
+  <header class="lesson-head">
+    <div class="kicker"><span class="sec-no">0.5</span><span>第零幕 · 从零开始</span><span>·</span><span>WHY ATTENTION</span></div>
+    <h1>为什么需要注意力：一句话不是一堆词</h1>
+    <p class="lede">0.2 和 0.3 讲的东西，任何一个普通神经网络都有。Transformer 特殊在它用什么方式<b>读一句话</b>。
+      这一页把"为什么老办法不行、注意力到底解决了什么"讲完整——包括它自己带来的两个新麻烦。</p>
+    <div class="meta-row">
+      <span class="pill acc">前置：0.2 神经元、0.4 怎么学</span>
+      <span class="pill">用于：§3.2 注意力、§3.5 位置编码、§4 论证</span>
+      <span class="pill">约 <b>22</b> 分钟</span>
+    </div>
+  </header>
+
+  <div class="whybox">
+    <div class="whybox-h">为什么学这一页</div>
+    <div class="whybox-g">
+      <div class="wide"><b>论文位置</b><span>§1（RNN 无法并行）；§3.2；§3.5；§4 表 1</span></div>
+      <div><b>不学卡在哪</b><span>不明白为什么必须换掉 RNN；不明白位置编码为什么是必需品；看不懂表 1 的复杂度对比。</span></div>
+      <div><b>它解决什么</b><span>这是整篇论文的立论：注意力同时解开了“长距离依赖”和“无法并行”两个死结。</span></div>
+    </div>
+  </div>
+
+  <h2><span class="n">1</span>普通神经网络处理句子，会撞上三堵墙</h2>
+  <div class="sec">
+    <p>0.2 里那个神经元，输入是固定的几个数。一句话不是固定几个数，它有长度，而且长度每次都不同。</p>
+
+    <h3>墙一：输入尺寸不固定</h3>
+    <p>一个全连接层的权重矩阵形状是定死的。输入 512 维，矩阵就得是 512×2048。可句子有时 3 个词，有时 40 个词。
+      如果按"最多 40 个词、每个词 512 维"设计，那就是 20480 维的输入，权重矩阵 20480×2048 ≈ <b>4200 万</b>个参数，只为一层。
+      而且长度超过 40 就完全没法处理。</p>
+
+    <h3>墙二：顺序会丢掉</h3>
+    <p>把「我打你」的三个词向量拼成一个长向量，和「你打我」拼出来的长向量，内容一样、顺序不同。
+      全连接层能区分它们（因为位置不同，连的权重也不同），但学到的规则是"第 1 格是'我'时怎样"，换成新句子就失效了。
+      <b>它记住的是格子的位置，不是词与词的关系。</b></p>
+
+    <h3>墙三：远距离的词碰不到面</h3>
+    <p>看这个句子：</p>
+    <div class="q">小猫坐在垫子上，<b>它</b>很困。</div>
+    <p>要理解「它」指小猫，模型必须建立第 1 个词和第 6 个词之间的联系。在全连接层里，这两处的信息只能靠"拼接后一起过矩阵"来混合，
+      而混合的方式对所有位置都是同一套——没法做到"这两个词特别相关，那两个词基本无关"。</p>
+  </div>
+
+  <h2><span class="n">2</span>老解法一：只盯相邻几个词（滑动窗口）</h2>
+  <div class="sec">
+    <p>最直接的想法：别管全句，每次只看相邻的 3 个词，把这一小段过一遍网络，再往后挪一格。</p>
+    <p>这叫<b>卷积</b>（convolution），在图像和语音里非常成功。它解决了"长度不定"（窗口固定大小，滑动即可）和"参数量爆炸"（同一套权重反复用）。</p>
+    <p>但它有个硬伤：<b>信息传不远</b>。</p>
+    <table class="tb">
+      <thead><tr><th style="width:26%">窗口大小</th><th style="width:30%">一层能覆盖的距离</th><th>第 1 个词影响第 30 个词需要几层</th></tr></thead>
+      <tbody>
+        <tr><td>3 个词</td><td>相邻 3 个</td><td><b>15 层</b></td></tr>
+        <tr><td>5 个词</td><td>相邻 5 个</td><td>8 层</td></tr>
+        <tr><td>11 个词</td><td>相邻 11 个</td><td>3 层</td></tr>
+      </tbody>
+    </table>
+    <p>层数就是成本。而且每传一层，信息就被"加工"一次，越传越模糊。句子一长，开头的词对结尾几乎没有影响。</p>
+  </div>
+
+  <h2><span class="n">3</span>老解法二：RNN，一个词一个词地读</h2>
+  <div class="sec">
+    <p>另一种做法是模拟人读书的方式：从左到右，读一个词，更新一下"记忆"，再读下一个。</p>
+    <div class="def">
+      <div class="def-h"><b>循环神经网络</b><i>recurrent neural network，RNN</i><span class="loc">§1、§4 作为对比对象</span></div>
+      <p><b>怎么工作：</b>维护一个"状态"向量。每读一个词，就用「上一个状态 + 当前词」算出新状态。读完整句，最后的状态就概括了整句话。</p>
+      <p><b>它好在哪：</b>天然处理变长输入，而且顺序信息是内建的——因为它是按顺序读的。</p>
+      <p><b>它的问题一：必须串行</b>。第 30 步要等第 29 步算完。一个 100 词的句子，就得走 100 次，GPU 再快也只能一步步来。</p>
+      <p><b>它的问题二：远距离会稀释</b>。第 1 个词的信息要经过 30 次"混合"才能到达末尾，每次混合都会掺进别的东西。</p>
+    </div>
+    <div class="note warn">
+      <p><b>这就是这篇论文要解决的核心问题。</b>论文 §1 的第一句话说得很直接：
+        "Recurrent models typically factor computation along the symbol positions of the input and output sequences."
+        ——循环模型必须按位置逐步计算，<b>排除了并行</b>。而序列一长，内存就成了瓶颈。</p>
+    </div>
+  </div>
+
+  <h2><span class="n">4</span>注意力的想法：不传递，直接看</h2>
+  <div class="sec">
+    <p>如果电话要一层层转述才能传到第 30 个人，那不如<b>开个全体会议</b>：每个人都能直接听到任何人的发言，想听谁就听谁。</p>
+    <p>这就是<b>注意力</b>：句子里每个词，都直接和<b>所有</b>词建立连接，包括自己。距离从"30 步"变成"<b>1 步</b>"。</p>
+
+    <h3>关键：听谁、听多少，是模型自己决定的</h3>
+    <p>不是平均地听所有人。每个词会给其他每个词打一个分，分数高的多听，分数低的少听，加起来正好 100%。</p>
+    <div class="q">小猫 坐在 垫子 上 ， <b>它</b> 很 困<br><br>「它」给各词的注意力：小猫 <b>62%</b>　垫子 12%　很 8%　其他 18%</div>
+    <p>62% 这个数字不是人写的规则，是训练学出来的（就像 0.2 里的权重 w）。模型发现"在这一类句子里，'它'应该大量参考前面的名词"，于是分配了这么大的权重。</p>
+
+    <div class="def">
+      <div class="def-h"><b>自注意力</b><i>self-attention</i><span class="loc">§3.2.1，式(1)</span></div>
+      <p><b>一句话：</b>让序列里每个位置，按学出来的权重，从所有位置收集信息，然后更新自己。</p>
+      <p><b>为什么叫"自"：</b>因为查询方和被查询方是<b>同一串</b>——句子自己看自己。如果一边看另一边（比如解码器看编码器），就叫交叉注意力。</p>
+      <p><b>它和全连接层的区别：</b>全连接层的连接强度是固定的（权重矩阵写死）；注意力的连接强度是<b>每次根据内容临时算的</b>，换一句话权重就变。</p>
+      <div class="x">易错：注意力不是"挑出一个最重要的词"，而是<b>按比例混合所有词</b>。即使权重只有 1%，那个词也参与了混合，只是份量很小。它是加权平均，不是硬选择。</div>
+    </div>
+  </div>
+
+  <h2><span class="n">5</span>但注意力自己带来两个新麻烦</h2>
+  <div class="sec">
+    <p>天下没有免费的方案。注意力解决了"距离"和"并行"，代价立刻显现。</p>
+
+    <div class="def">
+      <div class="def-h"><b>麻烦一：顺序信息全部丢失</b><i>permutation invariant</i><span class="loc">§3.5 位置编码</span></div>
+      <p><b>为什么：</b>注意力做的是加权求和。把句子里的词打乱顺序，每个词拿到的权重集合不变，求和结果完全一样。</p>
+      <p><b>感受一下：</b>「猫追狗」和「狗追猫」，如果只是把三个词换个位置，注意力算出来的"混合结果"是同一组数。
+        这显然不行——意思完全相反。</p>
+      <p><b>所以必须补：</b>给每个位置额外加一个"座位号"向量，让模型知道谁排第几。这就是<b>位置编码</b>（第 13 页）。</p>
+      <div class="x">易错：位置编码不是"辅助技巧"，它是<b>必需品</b>。没有它，Transformer 处理语言的能力会直接崩掉——因为它会把句子当成一袋词。</div>
+    </div>
+
+    <div class="def">
+      <div class="def-h"><b>麻烦二：计算量随长度平方增长</b><i>O(n²)</i><span class="loc">§4、表 1</span></div>
+      <p><b>为什么：</b>每个词都要和每个词算一次相似度。n 个词就有 n×n 个分数。</p>
+      <p><b>具体数：</b>n=100 时要算 1 万个数；n=1000 时要算 100 万个数；n=10000 时要算 <b>1 亿</b>个。长度翻 10 倍，计算量翻 100 倍。</p>
+      <p><b>和 RNN 比：</b>RNN 是 n×d² 的量级，线性增长。所以在超长序列上，注意力反而更贵——这就是论文表 1 想说明的事，也是 §4 花一整节讨论的原因。</p>
+      <div class="x">易错：论文说的是"当序列长度 n 小于表示维度 d 时，自注意力比循环层更快"。n 大、d 小的时候，结论会反过来。这是一个有条件的结论，不是一个绝对结论。</div>
+    </div>
+  </div>
+
+  <h2><span class="n">6</span>于是 Transformer 的样子就定下来了</h2>
+  <div class="sec">
+    <p>把上面的推理串起来，模型必须包含这几样东西，缺一不可：</p>
+    <table class="tb">
+      <thead><tr><th style="width:26%">需求</th><th style="width:28%">对应部件</th><th>如果拿掉会怎样</th></tr></thead>
+      <tbody>
+        <tr><td>让词之间直接通信</td><td><b>自注意力</b></td><td>退化成全连接，距离一远就失效</td></tr>
+        <tr><td>同时关注多种关系</td><td><b>多头注意力</b></td><td>只能学一种"看谁"的模式，容易糊在一起</td></tr>
+        <tr><td>知道词的先后</td><td><b>位置编码</b></td><td>把句子当成一袋词，语序完全失效</td></tr>
+        <tr><td>每个词自己深加工</td><td><b>前馈网络 FFN</b></td><td>只剩加权平均，无法做非线性变换</td></tr>
+        <tr><td>深层还能训得动</td><td><b>残差 + LayerNorm</b></td><td>堆到 6 层就梯度消失，训练不动</td></tr>
+        <tr><td>输出成词的概率</td><td><b>线性层 + Softmax</b></td><td>只有向量，说不出是哪个词</td></tr>
+      </tbody>
+    </table>
+    <p>这六行，就是论文 §3 的全部内容。<b>每一行都不是"技巧"，而是"缺了就不行"的必要件</b>——
+      这一点很重要，因为读论文时很容易把架构图上的每个方块都当成"设计选择"，实际上它们大多是被逼出来的。</p>
+    <p>下一页面（0.5）会把这张表变成一张完整的地图，把每个名词钉在流程上，并且专门解释你卡住的那个 <b>FFN</b>。</p>
+  </div>
+
+  <h2><span class="n">7</span>小结</h2>
+  <div class="sec">
+    <div class="summary">
+      <h3>本页要点</h3>
+      <ol>
+        <li>全连接网络处理句子有三堵墙：<b>长度不固定</b>、<b>顺序信息丢失</b>、<b>远距离词碰不到面</b>。</li>
+        <li>滑动窗口（卷积）能省参数，但<b>信息传不远</b>，1 个词影响 30 个词之外要堆 15 层。</li>
+        <li>RNN 按顺序读，<b>不能并行</b>，且长距离信息在传递中被稀释。</li>
+        <li>注意力让每个词<b>直接看所有词</b>，距离变成 1 步，而且可以全部同时算。</li>
+        <li>代价一：<b>顺序丢了</b> → 必须加位置编码。代价二：<b>O(n²)</b> → 长序列变贵。</li>
+        <li>Transformer = 自注意力（横向通信）+ FFN（纵向加工）+ 位置编码（顺序）+ 残差归一化（能训深）。</li>
+      </ol>
+    </div>
+  </div>
+
+  <h2><span class="n">8</span>自测</h2>
+  <div class="quiz">
+    <div class="qz">
+      <div class="q"><i>Q1</i>把「猫追狗」的三个词打乱成「狗猫追」，在<b>没有位置编码</b>的纯注意力里，输出会怎样？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>完全改变，因为词的位置变了</span></button>
+        <button class="opt" data-ok="1"><i>B</i><span>只是跟着换顺序，每个词拿到的混合结果和原来一模一样</span></button>
+        <button class="opt"><i>C</i><span>变成全零</span></button>
+      </div>
+      <div class="ex">注意力是加权求和，权重由内容算出，与位置无关。打乱输入顺序，只是让输出跟着重排，每个位置的数值不变——这就是"置换等变"，也是必须加位置编码的根本原因。</div>
+    </div>
+    <div class="qz">
+      <div class="q"><i>Q2</i>RNN 相比 Transformer 最致命的缺点是什么？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>参数量更大</span></button>
+        <button class="opt" data-ok="1"><i>B</i><span>必须逐步串行计算，无法并行，且长距离信息会被稀释</span></button>
+        <button class="opt"><i>C</i><span>不能处理变长输入</span></button>
+      </div>
+      <div class="ex">RNN 恰恰擅长变长输入，参数量也不大。它的死穴是时序依赖：第 t 步必须等第 t−1 步，GPU 的并行能力完全用不上；同时信息要经过 t 次变换才能传远，容易衰减。</div>
+    </div>
+    <div class="qz">
+      <div class="q"><i>Q3</i>自注意力的计算复杂度是 O(n²·d)，这里的 n 指什么？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>模型的层数</span></button>
+        <button class="opt" data-ok="1"><i>B</i><span>序列长度（词元个数）</span></button>
+        <button class="opt"><i>C</i><span>注意力头的数量</span></button>
+      </div>
+      <div class="ex">n 是序列长度。每个词要和每个词算相似度，所以是 n×n。层数 N 和头数 h 是另外的乘数，不影响这个平方关系。</div>
+    </div>
+    <div class="qz">
+      <div class="q"><i>Q4</i>论文 §4 说自注意力比循环层快，这个结论的前提是？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>无条件成立，自注意力永远更快</span></button>
+        <button class="opt" data-ok="1"><i>B</i><span>序列长度 n 小于表示维度 d 时成立</span></button>
+        <button class="opt"><i>C</i><span>只在 GPU 上成立，CPU 上不成立</span></button>
+      </div>
+      <div class="ex">表 1 的对比以每层计算量为准：自注意力 O(n²·d)，循环 O(n·d²)。当 n &lt; d 时前者更小。n 远大于 d 时，循环反而更省——这是有条件的结论。</div>
+    </div>
+    <div class="qz">
+      <div class="q"><i>Q5</i>为什么说"注意力是加权平均，不是挑出一个最重要的词"？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>因为权重加起来等于 1，所有词都按各自比例参与了混合</span></button>
+        <button class="opt" data-ok="1"><i>B</i><span>因为 softmax 之后所有权重都是正数，没有任何一项被清零</span></button>
+        <button class="opt"><i>C</i><span>因为注意力只对相邻词生效</span></button>
+      </div>
+      <div class="ex">两项都对，B 更根本：softmax 的输出恒为正且和为 1，所以每个词都以某个比例被混进来，哪怕只有 0.1%。真正的"硬选择"（把其他位置置零）叫稀疏注意力，是后来的变体。</div>
+    </div>
+  </div>
+
+  <div class="cite">
+    <b>原文出处</b>
+    §1 引言（循环模型无法并行、长序列的内存瓶颈）；§3.2.1 自注意力；§3.5 位置编码（顺序信息必须显式注入）；
+    §4 为什么用自注意力（表 1 复杂度对比，n &lt; d 的条件）。
+  </div>
+
+  <div id="termIndex"></div>
+</main>
+<script src="assets/course.js"></script>
+</body>
+</html>

@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page="sdpa">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>缩放点积注意力（§3.2.1） · Transformer 精读</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<main class="doc" id="doc">
+
+  <header class="lesson-head">
+    <div class="kicker"><span class="sec-no">08</span><span>正文</span><span>·</span><span>§3.2 · §3.2.1</span></div>
+    <h1>缩放点积注意力</h1>
+    <p class="lede">这一页是整篇论文的心脏。一个公式、四个动作，第 09、10 页都是它的扩展，第 14 页是它的辩护。
+      读完这页，你应该能徒手算出注意力矩阵里的任意一个数。</p>
+    <div class="meta-row">
+      <span class="pill acc">前置：第 01、02 页</span>
+      <span class="pill">对应：§3.2、§3.2.1</span>
+      <span class="pill">核心度 <b>★★★★★</b></span>
+      <span class="pill">约 <b>35</b> 分钟</span>
+    </div>
+  </header>
+
+  <div class="whybox">
+    <div class="whybox-h">为什么学这一页</div>
+    <div class="whybox-g">
+      <div class="wide"><b>论文位置</b><span>§3.2.1 式(1)</span></div>
+      <div><b>不学卡在哪</b><span>Q、K、V 三个字母不知道代表什么；不知道为什么要除以 √d_k。</span></div>
+      <div><b>它解决什么</b><span>这是 Transformer 的核心发明，论文标题“Attention Is All You Need”指的就是它。</span></div>
+    </div>
+  </div>
+
+  <h2><span class="n">1</span>先把 §3.2 那句定义读薄</h2>
+  <div class="sec">
+    <p>原文的定义只有一句，但塞了四个名词：</p>
+    <div class="q">
+      “An attention function can be described as mapping a <b>query</b> and a set of <b>key-value pairs</b> to an output,
+      where the query, keys, values, and output are all vectors. The output is computed as a <b>weighted sum of the values</b>,
+      where the weight assigned to each value is computed by a <b>compatibility function</b> of the query with the corresponding key.”
+    </div>
+    <p>翻译成大白话：</p>
+    <ol>
+      <li>你有一个<b>问题</b>（query）。</li>
+      <li>面前有一堆<b>条目</b>，每条有一个<b>标签</b>（key）和一份<b>内容</b>（value）。</li>
+      <li>你拿问题跟每个标签比对，算出一个<b>匹配度</b>（compatibility）。</li>
+      <li>按匹配度把内容<b>加权混合</b>，得到你要的答案（output）。</li>
+    </ol>
+    <p>就这么简单。剩下的所有复杂度，都来自“怎么算匹配度”和“怎么把权重归一化”这两个工程选择。</p>
+
+    <div class="def">
+      <div class="def-h"><b>注意力</b><i>attention</i><span class="loc">§3.2</span></div>
+      <p><b>是什么：</b>一种“按相关程度加权汇总”的操作。它不是查找（只取一个），而是<b>软查找</b>：
+        所有条目都取一点，相关的取多一点。</p>
+      <p><b>为什么用“软”的：</b>硬选择不可导，没法用梯度训练。加权平均是可导的，可以端到端学习。</p>
+      <div class="x">易错：注意力不是“关注最重要的那个”。它是<b>按比例混合全部</b>，即使最不相关的也有一点点权重（除非被掩码）。</div>
+    </div>
+  </div>
+
+  <h2><span class="n">2</span>Q、K、V：一个词的三套身份证</h2>
+  <div class="sec">
+    <p>同一个词向量 x（512 维），乘三个不同的矩阵，得到三套表示：</p>
+    <div class="fm">
+      <span class="v">q</span> <span class="op">=</span> <span class="v">xW</span><sup>Q</sup> &nbsp;&nbsp;
+      <span class="v">k</span> <span class="op">=</span> <span class="v">xW</span><sup>K</sup> &nbsp;&nbsp;
+      <span class="v">v</span> <span class="op">=</span> <span class="v">xW</span><sup>V</sup>
+      <span class="cap">W<sup>Q</sup>、W<sup>K</sup>、W<sup>V</sup> 形状都是 512×64（单头情况下 d<sub>k</sub>=d<sub>v</sub>=d<sub>model</sub>）</span>
+    </div>
+
+    <div class="def">
+      <div class="def-h"><b>Query 查询</b><i>Q</i><span class="loc">§3.2</span></div>
+      <p><b>是什么：</b>当前这个词“想找什么”的表示。</p>
+      <p><b>类比：</b>你在图书馆检索框里输入的关键词。</p>
+      <div class="x">易错：Q 不是“词本身”，而是“这个词在提问时的样子”。同一个词在不同层、不同头里，Q 的用途都不同。</div>
+    </div>
+
+    <div class="def">
+      <div class="def-h"><b>Key 键</b><i>K</i><span class="loc">§3.2</span></div>
+      <p><b>是什么：</b>每个词“我是什么”的表示，用于被匹配。</p>
+      <p><b>类比：</b>书脊上的分类标签。你不是拿走标签，只是拿它做比对。</p>
+      <div class="x">易错：K 和 V 是分开的两套向量。很多人以为“匹配上就把这个词本身搬过来”——不是，搬过来的是 V。</div>
+    </div>
+
+    <div class="def">
+      <div class="def-h"><b>Value 值</b><i>V</i><span class="loc">§3.2</span></div>
+      <p><b>是什么：</b>每个词“我能提供什么内容”的表示。权重算好之后，真正被加权求和的是它。</p>
+      <p><b>类比：</b>书的正文。标签决定借哪本，正文才是你带走的东西。</p>
+      <div class="x">易错：如果 K 和 V 用同一个矩阵（K=V），模型就失去了“按一种标准匹配、按另一种标准取内容”的灵活性。论文特意分开。</div>
+    </div>
+
+    <p><b>为什么非要拆成三个？</b>因为“匹配的标准”和“取走的内容”常常不是一回事。
+      比如代词“它”要找的是“前面出现过的、单数的、非人的名词”——这是匹配标准；
+      而它真正需要吸收的信息可能是“动物”的语义特征——这是内容。
+      用同一套向量同时承担两个职责，会互相牵制。</p>
+  </div>
+
+  <h2><span class="n">3</span>公式的四个动作</h2>
+  <div class="sec">
+    <div class="fm">
+      <span class="c">Attention</span>(<span class="v">Q</span>, <span class="v">K</span>, <span class="v">V</span>)
+      <span class="op">=</span> <span class="c">softmax</span>( <span class="v">QK</span><sup>T</sup> / √<span class="v">d</span><sub>k</sub> ) <span class="v">V</span>
+      <span class="cap">式 (1)。括号里的结果叫“注意力权重”，再乘 V 得到输出</span>
+    </div>
+
+    <div class="op">
+      <div class="op-h"><span class="i">①</span>打分：QK<sup>T</sup><span class="tg">n×d<sub>k</sub> · d<sub>k</sub>×n → n×n</span></div>
+      <div class="op-b">
+        <dl class="op-f"><dt>做什么</dt><dd>每个 Query 与每个 Key 做点积，得到一张“词 × 词”的相似度表。</dd></dl>
+        <dl class="op-f"><dt>条件</dt><dd>Q 与 K 的列数必须相同（都是 d<sub>k</sub>）。这也是多头里每头都用 64 维的原因。</dd></dl>
+        <dl class="op-f"><dt>结果</dt><dd>n×n 矩阵。第 i 行第 j 列 = 第 i 个词给第 j 个词打的分。数值无界，可正可负。</dd></dl>
+        <dl class="op-f err"><dt>易错</dt><dd>写成 KQ<sup>T</sup>（行列含义反了）；忘记转置导致形状不合法；把 batch 维度漏掉（实际是 b×n×n）。</dd></dl>
+      </div>
+    </div>
+
+    <div class="op">
+      <div class="op-h"><span class="i">②</span>缩放：除以 √d<sub>k</sub><span class="tg">逐元素</span></div>
+      <div class="op-b">
+        <dl class="op-f"><dt>做什么</dt><dd>把 n×n 矩阵里的每个数都除以 √d<sub>k</sub>。</dd></dl>
+        <dl class="op-f"><dt>条件</dt><dd>必须在 softmax <b>之前</b>做。放在之后没有任何意义（那时已经是概率了）。</dd></dl>
+        <dl class="op-f"><dt>结果</dt><dd>形状不变，数值范围被压小，softmax 不会饱和。</dd></dl>
+        <dl class="op-f err"><dt>易错</dt><dd>除以 d<sub>k</sub> 而不是 √d<sub>k</sub>（压得过头，注意力变得过于平均）；d<sub>k</sub>=64 时 √d<sub>k</sub>=8。</dd></dl>
+      </div>
+    </div>
+
+    <div class="op">
+      <div class="op-h"><span class="i">③</span>归一化：softmax<span class="tg">按行</span></div>
+      <div class="op-b">
+        <dl class="op-f"><dt>做什么</dt><dd>对每一行做 softmax，使每行正数、求和为 1。</dd></dl>
+        <dl class="op-f"><dt>条件</dt><dd>如果要用掩码（解码器），必须在 softmax 前把非法位置设成 −∞，否则 softmax 之后没法再置零。</dd></dl>
+        <dl class="op-f"><dt>结果</dt><dd>n×n 的权重矩阵，每行是一个概率分布。</dd></dl>
+        <dl class="op-f err"><dt>易错</dt><dd>对整个矩阵做 softmax（应该按行）；掩码放在 softmax 之后（那样权重和不再是 1）。</dd></dl>
+      </div>
+    </div>
+
+    <div class="op">
+      <div class="op-h"><span class="i">④</span>汇总：× V<span class="tg">n×n · n×d<sub>v</sub> → n×d<sub>v</sub></span></div>
+      <div class="op-b">
+        <dl class="op-f"><dt>做什么</dt><dd>用权重矩阵的每一行，对 V 的所有行做加权平均。</dd></dl>
+        <dl class="op-f"><dt>条件</dt><dd>权重的列数（n）必须等于 V 的行数（n）——两者都来自同一个序列，天然对上。</dd></dl>
+        <dl class="op-f"><dt>结果</dt><dd>n×d<sub>v</sub>。第 i 行 = 第 i 个词“看过全句之后”的新表示。</dd></dl>
+        <dl class="op-f err"><dt>易错</dt><dd>以为输出是某个词的 V 的复制——它是<b>所有 V 的混合</b>，只是权重不均。</dd></dl>
+      </div>
+    </div>
+
+    <h3>为什么这四步可以并行</h3>
+    <p>注意：整个过程没有任何一步依赖“上一步的结果”。所有词的 Q、K、V 都能同时算，
+      整个 n×n 分数矩阵一次矩阵乘法就能出。这正是 Transformer 相对 RNN 的根本优势——
+      <b>不是算得更少，而是能同时算</b>。</p>
+  </div>
+
+  <h2><span class="n">4</span>亲手算一遍</h2>
+  <p>下面用三个词、每个向量 4 维（d<sub>k</sub>=4，所以 √d<sub>k</sub>=2）走一遍全过程。
+    点“下一步”跟着看，每一步的数值都能自己验算。</p>
+  <div class="demo" data-w="sdpa"></div>
+
+  <div class="note">
+    <p><b>验算一下第 3 步：</b>「它」这一行的缩放后分数是 [1, 2, 1]。
+      e¹≈2.718、e²≈7.389、e¹≈2.718，总和 12.826。
+      于是权重是 2.718/12.826≈<b>21%</b>、7.389/12.826≈<b>58%</b>、2.718/12.826≈<b>21%</b>。
+      58% 就是从「动物」取走的信息比例。</p>
+  </div>
+
+  <h2><span class="n">5</span>为什么要除以 √d<sub>k</sub>（本页最难的一点）</h2>
+  <div class="sec">
+    <p>论文给的理由很简短，用一个脚注补完了证明：</p>
+    <div class="q">
+      “We suspect that for large values of d<sub>k</sub>, the dot products grow large in magnitude, pushing the softmax
+      function into regions where it has extremely small gradients. To counteract this effect, we scale the dot products by 1/√d<sub>k</sub>.”
+    </div>
+
+    <h3>第一步：点积为什么会变大</h3>
+    <p>假设 q 和 k 的每一维都是独立的随机变量，均值 0、方差 1。那么点积
+      <code>q·k = Σ qᵢkᵢ</code> 是 d<sub>k</sub> 个独立项的和，每一项的方差是 1。
+      方差可加，所以<b>点积的方差 = d<sub>k</sub></b>，标准差 = √d<sub>k</sub>。</p>
+    <p>d<sub>k</sub>=64 时，标准差是 8。也就是说分数经常落在 ±16、±24 这种量级上。</p>
+
+    <h3>第二步：大分数为什么有害</h3>
+    <p>softmax 对输入做指数。分数一大，最大的那个就把其他全部压死。举个具体例子：</p>
+    <div class="tw">
+      <table class="tb">
+        <thead><tr><th>输入 logits</th><th>softmax 结果</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td class="num">[0, 1, 0]</td><td class="num">[0.21, 0.58, 0.21]</td><td>分散，梯度良好</td></tr>
+          <tr><td class="num">[0, 8, 0]</td><td class="num">[0.0003, 0.9994, 0.0003]</td><td>几乎 one-hot，另外两个词的梯度≈0</td></tr>
+          <tr><td class="num">[0, 30, 0]</td><td class="num">[≈0, ≈1, ≈0]</td><td>完全饱和，学不动</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>一旦 softmax 输出接近 one-hot，它对输入的导数就接近 0。梯度传不回去，注意力就“冻住”了——
+      模型不再学习该关注谁。</p>
+
+    <h3>第三步：除以 √d<sub>k</sub> 正好把方差拉回 1</h3>
+    <p>除以 √d<sub>k</sub> 后，点积的方差变成 d<sub>k</sub>/(√d<sub>k</sub>)² = 1。分数回到“个位数”量级，
+      softmax 落在梯度良好的区间。</p>
+    <div class="note">
+      <p><b>一句话记住：</b>√d<sub>k</sub> 不是玄学常数，它是“把点积的标准差从 √d<sub>k</sub> 拉回 1”的那个数。</p>
+    </div>
+    <div class="note warn">
+      <p><b>常见误解：</b>“除以 √d<sub>k</sub> 是为了让输出数值变小、防止溢出。”不准确。
+        它防的不是数值溢出，而是 <b>softmax 饱和导致的梯度消失</b>。这两个问题在数值上相关，但机理不同。</p>
+    </div>
+  </div>
+
+  <h2><span class="n">6</span>为什么用点积，而不是加性注意力</h2>
+  <div class="sec">
+    <p>论文提到两种常见的注意力打分方式：</p>
+    <ul>
+      <li><b>加性注意力</b>（additive，Bahdanau 2015）：用一个小的前馈网络算 <code>v·tanh(W₁q + W₂k)</code>。</li>
+      <li><b>点积注意力</b>（dot-product）：直接 <code>q·k</code>。</li>
+    </ul>
+    <p>理论上两者复杂度相近，但点积能直接用高度优化的矩阵乘法库，<b>更快、更省显存</b>。
+      代价是：d<sub>k</sub> 很大时点积数值会失控——这正是缩放因子要解决的问题。</p>
+    <div class="tw">
+      <table class="tb">
+        <thead><tr><th>方式</th><th>打分函数</th><th>速度</th><th>大 d<sub>k</sub> 时</th></tr></thead>
+        <tbody>
+          <tr><td>加性</td><td>小型前馈网络</td><td>慢（多一层）</td><td>稳定</td></tr>
+          <tr><td>点积（不缩放）</td><td>q·k</td><td>快</td><td>数值爆炸、softmax 饱和</td></tr>
+          <tr><td><b>点积 + 缩放</b></td><td>q·k/√d<sub>k</sub></td><td>快</td><td>稳定</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>所以式 (1) 的那个除法，本质上是“用一行代码换回了加性注意力的稳定性，同时保留了矩阵乘法的速度”。</p>
+  </div>
+
+  <h2><span class="n">7</span>易错清单（读完自检）</h2>
+  <div class="sec">
+    <ul>
+      <li>❌ 以为 softmax 对整张矩阵做 → ✅ 按行做，每行和为 1。</li>
+      <li>❌ 以为缩放放在 softmax 之后 → ✅ 必须之前。</li>
+      <li>❌ 以为输出是“最相关那个词的 V” → ✅ 是所有 V 的加权混合。</li>
+      <li>❌ 以为 Q、K、V 是三个不同的输入 → ✅ 同一输入乘三个不同矩阵。</li>
+      <li>❌ 以为注意力有权重就一定能解释 → ✅ 权重是模型学出来的，未必符合人类直觉。</li>
+      <li>❌ 以为 d<sub>k</sub> 是“词向量维度” → ✅ 是每个头的维度（64），不是 512。</li>
+    </ul>
+  </div>
+
+  <div class="summary">
+    <h3>本页要点</h3>
+    <ol>
+      <li>注意力 = 用 Q 和 K 算匹配度，再用匹配度对 V 做加权平均。</li>
+      <li>Q/K/V 是同一输入乘三个矩阵；匹配靠 K，取内容靠 V。</li>
+      <li>四个动作的顺序不可换：打分 → 缩放 → （掩码）→ softmax → 乘 V。</li>
+      <li>除以 √d<sub>k</sub> 是因为点积方差 ≈ d<sub>k</sub>，不缩放会让 softmax 饱和、梯度消失。</li>
+      <li>整个过程无数据依赖，可整句并行——这是相对 RNN 的根本优势。</li>
+    </ol>
+  </div>
+
+  <h2><span class="n">8</span>自测</h2>
+  <div class="quiz">
+    <div class="qz">
+      <div class="q"><i>Q1</i>若 d<sub>k</sub> = 64，缩放因子 √d<sub>k</sub> 约等于多少？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>64</span></button>
+        <button class="opt" data-ok="1"><i>B</i><span>8</span></button>
+        <button class="opt"><i>C</i><span>32</span></button>
+      </div>
+      <div class="ex">√64 = 8。所以点积分数会被除以 8，把标准差从 8 拉回 1。</div>
+    </div>
+    <div class="qz">
+      <div class="q"><i>Q2</i>把缩放放到 softmax 之后，会发生什么？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>没有影响，结果一样</span></button>
+        <button class="opt" data-ok="1"><i>B</i><span>softmax 依然饱和，缩放完全失效，而且每行不再和为 1</span></button>
+        <button class="opt"><i>C</i><span>效果更好，因为数值更小</span></button>
+      </div>
+      <div class="ex">缩放的目的就是让 softmax 的输入落在舒适区。放到后面，饱和已经发生；而且概率被除以 8 后不再归一。</div>
+    </div>
+    <div class="qz">
+      <div class="q"><i>Q3</i>注意力输出向量的第 i 行，最准确的描述是？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>第 i 个词的 V 向量</span></button>
+        <button class="opt"><i>B</i><span>所有 V 的平均（权重相同）</span></button>
+        <button class="opt" data-ok="1"><i>C</i><span>按第 i 个词的注意力权重，对所有 V 的加权和</span></button>
+      </div>
+      <div class="ex">权重不同，所以不是平均；也不是只取一个。它是 soft lookup 的结果。</div>
+    </div>
+  </div>
+
+  <div class="cite">
+    <b>原文出处</b>
+    §3.2 Attention（注意力的定义）；§3.2.1 Scaled Dot-Product Attention（式 1、缩放的理由、脚注 4 的方差推导、
+    与加性注意力的对比）；图 2 左。
+  </div>
+
+  <div id="termIndex"></div>
+</main>
+<script src="assets/course.js"></script>
+</body>
+</html>

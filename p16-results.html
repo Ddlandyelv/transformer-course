@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page="result">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>结果、消融与结论（§6-§7） · Transformer 精读</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<main class="doc" id="doc">
+
+  <header class="lesson-head">
+    <div class="kicker"><span class="sec-no">16</span><span>正文</span><span>·</span><span>§6 · §7</span></div>
+    <h1>结果、消融与结论</h1>
+    <p class="lede">最后两节回答两个问题：它到底好多少？每个零件是不是都必要？
+      表 2 是成绩单，表 3 是体检报告——后者其实更有信息量。</p>
+    <div class="meta-row">
+      <span class="pill acc">前置：第 05、14、15 页</span>
+      <span class="pill">对应：§6.1–§6.3、§7</span>
+      <span class="pill">约 <b>25</b> 分钟</span>
+    </div>
+  </header>
+
+  <div class="whybox">
+    <div class="whybox-h">为什么学这一页</div>
+    <div class="whybox-g">
+      <div class="wide"><b>论文位置</b><span>§6–§7</span></div>
+      <div><b>不学卡在哪</b><span>BLEU 28.4 意味着什么；消融实验到底在证明哪一件事。</span></div>
+      <div><b>它解决什么</b><span>这是论文的证据部分——所有前面的主张，都要在这里兑现成数字。</span></div>
+    </div>
+  </div>
+
+  <h2><span class="n">1</span>表 2：成绩单</h2>
+  <div class="sec">
+    <div class="tw">
+      <table class="tb">
+        <thead><tr><th>模型</th><th>EN-DE BLEU</th><th>EN-FR BLEU</th><th>训练成本（FLOPs）</th></tr></thead>
+        <tbody>
+          <tr><td>ByteNet</td><td class="num">23.75</td><td class="num">—</td><td class="num">—</td></tr>
+          <tr><td>GNMT + RL</td><td class="num">24.6</td><td class="num">39.92</td><td class="num">2.3 × 10<sup>19</sup></td></tr>
+          <tr><td>ConvS2S</td><td class="num">25.16</td><td class="num">40.46</td><td class="num">9.6 × 10<sup>18</sup></td></tr>
+          <tr><td>MoE</td><td class="num">26.03</td><td class="num">40.56</td><td class="num">2.0 × 10<sup>19</sup></td></tr>
+          <tr><td>ConvS2S（集成）</td><td class="num">26.36</td><td class="num">41.29</td><td class="num">1.2 × 10<sup>21</sup></td></tr>
+          <tr><td>GNMT + RL（集成）</td><td class="num">26.30</td><td class="num">41.16</td><td class="num">1.1 × 10<sup>21</sup></td></tr>
+          <tr style="background:var(--accent-soft)"><td><b>Transformer（base）</b></td><td class="num"><b>27.3</b></td><td class="num"><b>38.1</b></td><td class="num"><b>3.3 × 10<sup>18</sup></b></td></tr>
+          <tr style="background:var(--accent-soft)"><td><b>Transformer（big）</b></td><td class="num"><b>28.4</b></td><td class="num"><b>41.8</b></td><td class="num"><b>2.3 × 10<sup>19</sup></b></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>三个必须注意的对比</h3>
+    <ul>
+      <li><b>base 27.3 就已经超过所有集成模型（26.36）。</b>单个模型打赢了一群模型——这是最震撼的一点。</li>
+      <li><b>成本低一个数量级。</b>集成模型要 1.1–1.2 × 10<sup>21</sup> FLOPs，base 只要 3.3 × 10<sup>18</sup>，
+        差约 <b>300 倍</b>。</li>
+      <li><b>英法反而不是 base 最好。</b>base 38.1，比 GNMT+RL 的 39.92 低。原因是 base 在英法上只训练了
+        很少的步数（论文为了节省算力，英法 base 用的步数远少于英德）。big 才拉到 41.8。</li>
+    </ul>
+
+    <div class="note warn">
+      <p><b>一处原文不一致，值得知道：</b>摘要与表 2 给出的英法 big 成绩是 <b>41.8</b>，
+        但 §6.1 正文有一句写作 “achieves a BLEU score of 41.0”。两处数字对不上。
+        引用时应以表 2 与摘要为准（41.8），并注意这是论文自身的小瑕疵，而不是你算错了。</p>
+    </div>
+
+    <h3>解码设置</h3>
+    <p>表 2 的成绩不是随便挑一个结果，而是用了固定配置：beam size = 4、长度惩罚 α = 0.6、
+      最大输出长度 = 输入长度 + 50、可提前结束。base 用最后 5 个检查点平均，big 用 20 个。</p>
+    <p>这些设置意味着：<b>报告的分数是“调过解码策略”的分数</b>，不是单次贪心解码的结果。
+      复现时如果只用贪心，通常会低 1 分左右。</p>
+  </div>
+
+  <h2><span class="n">2</span>表 3：消融实验（信息量最大的一张表）</h2>
+  <div class="sec">
+    <p>消融（ablation）的意思是：每次只改一个零件，看性能掉多少。掉得越多，说明这个零件越关键。
+      以下数据全部来自 dev 集（newstest2013），不是测试集。</p>
+
+    <h3>(A) 头数 h</h3>
+    <div class="tw">
+      <table class="tb">
+        <thead><tr><th>h</th><th>d<sub>k</sub>=d<sub>v</sub></th><th>dev BLEU</th><th>相对 base</th></tr></thead>
+        <tbody>
+          <tr><td class="num">1</td><td class="num">512</td><td class="num">24.9</td><td style="color:var(--warm)">−0.9</td></tr>
+          <tr><td class="num">4</td><td class="num">128</td><td class="num">25.5</td><td>−0.3</td></tr>
+          <tr style="background:var(--accent-soft)"><td class="num"><b>8</b></td><td class="num"><b>64</b></td><td class="num"><b>25.8</b></td><td><b>基准</b></td></tr>
+          <tr><td class="num">16</td><td class="num">32</td><td class="num">25.8</td><td>0</td></tr>
+          <tr><td class="num">32</td><td class="num">16</td><td class="num">25.4</td><td style="color:var(--warm)">−0.4</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>结论：单头明显差（−0.9），说明多头不是装饰；但头太多（每头 16 维）也掉——表达能力被切得太碎。</p>
+
+    <h3>(B) 键的维度 d<sub>k</sub></h3>
+    <p>单独把 d<sub>k</sub> 调小（16、32）都会掉分。论文的判断是：“determining compatibility is not easy”，
+      即“算相似度”这件事本身需要足够的维度，点积这种简单函数可能还不够，值得研究更复杂的匹配函数。</p>
+
+    <h3>(C) 模型规模</h3>
+    <div class="tw">
+      <table class="tb">
+        <thead><tr><th>配置</th><th>d<sub>ff</sub></th><th>dev BLEU</th><th>参数量</th></tr></thead>
+        <tbody>
+          <tr><td>base</td><td class="num">2048</td><td class="num">25.8</td><td class="num">65 M</td></tr>
+          <tr><td>d<sub>ff</sub>=1024</td><td class="num">1024</td><td class="num">25.4</td><td class="num">53 M</td></tr>
+          <tr><td>d<sub>ff</sub>=4096</td><td class="num">4096</td><td class="num">26.2</td><td class="num">90 M</td></tr>
+          <tr><td>d<sub>model</sub>=1024</td><td class="num">4096</td><td class="num">26.0</td><td class="num">168 M</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>结论：<b>更大的模型更好</b>。这条结论后来被 GPT 系列一路验证到极致——它就是“缩放定律”的早期证据。</p>
+
+    <h3>(D) Dropout</h3>
+    <p>去掉 dropout（0.0）→ 24.6，掉了 1.2 分；加到 0.2 → 25.5，也略降。0.1 是甜点。
+      <b>这是全文最能说明“正则很重要”的一组数字</b>：一个超参就能决定 1 分以上的 BLEU。</p>
+
+    <h3>(E) 位置编码</h3>
+    <p>正弦 → 可学习位置向量：25.8 → 25.7。<b>几乎没差别</b>。所以选正弦的理由是外推能力，不是效果（见第 13 页）。</p>
+  </div>
+
+  <h2><span class="n">3</span>§6.3 泛化：句法分析</h2>
+  <div class="sec">
+    <p>为了证明“不只能翻译”，作者把模型用到英语成分句法分析（给句子画语法树）。这个任务的特点是：
+      输出必须满足严格的树结构，而且比输入长得多。</p>
+    <div class="tw">
+      <table class="tb">
+        <thead><tr><th>设置</th><th>训练数据</th><th>WSJ 23 F1</th></tr></thead>
+        <tbody>
+          <tr><td>Transformer（4 层）</td><td>WSJ only，约 4 万句</td><td class="num">91.3</td></tr>
+          <tr><td>此前最好的判别式模型（Dyer et al.）</td><td>WSJ only</td><td class="num">91.7</td></tr>
+          <tr><td>Transformer（4 层）</td><td>半监督，约 1700 万句</td><td class="num"><b>92.7</b></td></tr>
+          <tr><td>RNN Grammar（当时最强）</td><td>生成式</td><td class="num">93.3</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>结论要读准：<b>在只有 4 万句的小数据设定下，它没有超过专门设计的判别式模型</b>（91.3 vs 91.7）；
+      但在半监督设定下超过了一大批模型（92.7），只输给 RNN Grammar。
+      论文的措辞是 “surprisingly well”，不是“全面碾压”——这是诚实的表述。</p>
+  </div>
+
+  <h2><span class="n">4</span>§7 结论说了什么</h2>
+  <div class="sec">
+    <p>结论段很短，三句话：</p>
+    <ol>
+      <li>提出了 Transformer——第一个完全基于注意力、用多头自注意力替换循环层的序列转换模型。</li>
+      <li>在翻译任务上训练显著更快，并在两个 WMT 任务上达到新的 SOTA。</li>
+      <li>计划把注意力应用到其他任务，并研究受限注意力以处理大输入输出（图像、音频、视频）。</li>
+    </ol>
+    <p>第三句是整个领域后来十年的路线图：ViT（图像）、Whisper（音频）、AlphaFold 2（结构）都是这条线上的产物。</p>
+  </div>
+
+  <h2><span class="n">5</span>它的局限（论文没写，但必须知道）</h2>
+  <div class="sec">
+    <ul>
+      <li><b>O(n²) 的硬约束。</b>序列翻倍，注意力计算量四倍。长文档、高分辨率图像都因此受限——
+        这也是后来稀疏注意力、线性注意力、状态空间模型（Mamba）的动机。</li>
+      <li><b>数据饥渴。</b>4.5M 句对起步。低资源语言仍然难，论文没有解决。</li>
+      <li><b>训练不稳定。</b>Post-LN + warmup 的组合对超参敏感，后来普遍改用 Pre-LN。</li>
+      <li><b>推理是串行的。</b>训练可以并行，但生成必须一个词一个词来，长文本推理成本高。</li>
+      <li><b>位置外推能力有限。</b>正弦编码理论上能外推，实际效果远不如宣传，后面才有了 RoPE、ALiBi。</li>
+    </ul>
+  </div>
+
+  <div class="summary">
+    <h3>本页要点</h3>
+    <ol>
+      <li>base 27.3 / 28.4（big）EN-DE，38.1 / 41.8 EN-FR；成本比对手低一到两个数量级。</li>
+      <li>成绩依赖解码配置：beam=4、α=0.6、检查点平均。</li>
+      <li>消融：单头 −0.9；d<sub>ff</sub> 翻倍 +0.4；去掉 dropout −1.2；位置编码两种方案几乎无差。</li>
+      <li>句法分析只在半监督设定下有优势，小数据设定没有超过专门模型。</li>
+      <li>局限：平方复杂度、数据饥渴、训练不稳、推理串行。</li>
+    </ol>
+  </div>
+
+  <h2><span class="n">6</span>自测</h2>
+  <div class="quiz">
+    <div class="qz">
+      <div class="q"><i>Q1</i>表 2 里最能说明“效率优势”的一组对比是？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>Transformer big 28.4 vs base 27.3</span></button>
+        <button class="opt" data-ok="1"><i>B</i><span>base 3.3×10¹⁸ FLOPs 拿到 27.3，而集成模型 1.1×10²¹ 才 26.3</span></button>
+        <button class="opt"><i>C</i><span>英法 41.8 vs 英德 28.4</span></button>
+      </div>
+      <div class="ex">差 300 倍的算力，反而拿到更高的分数，这就是“更便宜且更好”的直接证据。</div>
+    </div>
+    <div class="qz">
+      <div class="q"><i>Q2</i>消融里哪一项对性能影响最大（以 BLEU 计）？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>把 8 头改成 1 头</span></button>
+        <button class="opt" data-ok="1"><i>B</i><span>把 dropout 从 0.1 改成 0</span></button>
+        <button class="opt"><i>C</i><span>把正弦位置编码换成可学习向量</span></button>
+      </div>
+      <div class="ex">dropout 归零掉 1.2 分，单头掉 0.9 分，位置编码只差 0.1。正则的重要性常被低估。</div>
+    </div>
+    <div class="qz">
+      <div class="q"><i>Q3</i>关于句法分析实验，正确的说法是？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>Transformer 在所有设定下都超过了专门模型</span></button>
+        <button class="opt" data-ok="1"><i>B</i><span>小数据设定下没有超过最好的判别式模型，半监督设定下才体现优势</span></button>
+        <button class="opt"><i>C</i><span>句法分析任务上完全失败</span></button>
+      </div>
+      <div class="ex">91.3 vs 91.7（WSJ only），92.7（半监督）超过多数模型但输给 RNN Grammar 的 93.3。论文说 “surprisingly well”，是谨慎的表述。</div>
+    </div>
+  </div>
+
+  <div class="cite">
+    <b>原文出处</b>
+    §6.1 Machine Translation（表 2、beam search、长度惩罚、检查点平均）；§6.2 Model Variations（表 3 全部消融）；
+    §6.3 English Constituency Parsing（表 4）；§7 Conclusion。
+    注：英法 big 的 41.8 见摘要与表 2，§6.1 正文出现的 41.0 属原文自身不一致。
+  </div>
+
+  <div id="termIndex"></div>
+</main>
+<script src="assets/course.js"></script>
+</body>
+</html>

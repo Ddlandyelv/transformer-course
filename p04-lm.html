@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page="lm">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>语言模型、分词与评价指标 · Transformer 精读</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<main class="doc" id="doc">
+
+  <header class="lesson-head">
+    <div class="kicker"><span class="sec-no">04</span><span>前置知识</span><span>·</span><span>TOKEN &amp; METRIC</span></div>
+    <h1>语言模型、分词与评价指标</h1>
+    <p class="lede">模型看到的第一样东西不是文字，是数字编号；模型交出的最后一样东西不是句子，是概率分布。
+      这一页讲清楚这中间的两端，以及论文里那些 BLEU、PPL 到底在量什么。</p>
+    <div class="meta-row">
+      <span class="pill acc">前置：第 03 页</span>
+      <span class="pill">用于：§3.4、§5.1、§6</span>
+      <span class="pill">约 <b>22</b> 分钟</span>
+    </div>
+  </header>
+
+  <div class="whybox">
+    <div class="whybox-h">为什么学这一页</div>
+    <div class="whybox-g">
+      <div class="wide"><b>论文位置</b><span>§3.4 词表与嵌入；§5.1 BPE 与批次；§6.1 BLEU</span></div>
+      <div><b>不学卡在哪</b><span>不知道模型到底在做什么任务；BLEU 28.4 是高是低没有概念。</span></div>
+      <div><b>它解决什么</b><span>任务定义、数据表示、评分标准三件事都在这一页，它们是读懂后面所有数字的前提。</span></div>
+    </div>
+  </div>
+
+  <h2><span class="n">1</span>三个绕不开的词：词元、词表、编号</h2>
+  <div class="sec">
+    <div class="def">
+      <div class="def-h"><b>词元</b><i>token</i><span class="loc">§5.1</span></div>
+      <p><b>是什么：</b>文本被切分后的最小单位。它可能是一个完整的词（animal）、一个词根（un-）、
+        一个后缀（-ing），甚至一个字符。</p>
+      <p><b>为什么需要：</b>模型只能处理固定大小的整数集合。必须先把任意文本切成“词表里存在的零件”，
+        再把零件换成编号。</p>
+      <p><b>直观理解：</b>像乐高。整词是成品件，子词是通用小件。用有限的小件拼出无限的词，
+        这就是子词切分的价值。</p>
+      <div class="x">易错：token ≠ 单词。英文一个词可能被切成 2–3 个 token；中文一个字可能是 1 个 token，也可能两个字合成一个。
+        论文报告的一切长度（序列长度 n、计算量）都是按 token 算的，不是按词。</div>
+    </div>
+
+    <div class="def">
+      <div class="def-h"><b>词表</b><i>vocabulary</i><span class="loc">§5.1；§3.4</span></div>
+      <p><b>是什么：</b>所有合法词元的集合，每个词元有一个唯一编号。论文英德任务约 <b>37000</b> 个，
+        英法任务用 32000 个 word-piece。</p>
+      <p><b>它决定了两件事：</b>① 嵌入表有多大（37000 × 512）；② 输出层有多宽（每个位置要给出 37000 个分数）。</p>
+      <div class="x">易错：词表不是越大越好。词表大 → 输出层参数暴涨、稀有词训练不足；词表小 → 句子被切得很碎，序列变长，注意力成本按平方涨。</div>
+    </div>
+
+    <h3>为什么不用“按空格切词”</h3>
+    <p>词级切分有三个死穴：词表会爆炸（英文几十万、加上专业术语更多）；
+      遇到没见过的词只能标记为 <code>&lt;unk&gt;</code>，信息全丢；
+      对中文、日文这种不空格的语言根本不适用。字符级则相反：词表很小，但序列变得极长，模型要花很大力气才能把字符拼成意义。</p>
+    <p>子词切分是折中：常见词保留整词，罕见词拆成片段，词表可控、序列也不会太长。</p>
+  </div>
+
+  <h2><span class="n">2</span>BPE：论文实际用的切词方法</h2>
+  <div class="sec">
+    <div class="def">
+      <div class="def-h"><b>BPE</b><i>byte-pair encoding</i><span class="loc">§5.1</span></div>
+      <p><b>是什么：</b>一种从字符出发、不断合并高频相邻片段的子词构建算法。训练语料跑完之后，
+        得到的合并规则就是切词器。</p>
+      <p><b>为什么用它：</b>它保证任何词都能被切成词表内的片段（最差情况切成单字符），
+        不会出现“未知词”，同时让高频组合成为一个整体 token。</p>
+      <div class="x">易错：BPE 是<b>在语料上统计出来的</b>，不是人工规则。同一份语料换个语言，切出来的子词完全不同。</div>
+    </div>
+
+    <div class="op">
+      <div class="op-h"><span class="i">1</span>BPE 训练：反复合并最高频的相邻对<span class="tg">迭代</span></div>
+      <div class="op-b">
+        <dl class="op-f"><dt>输入</dt><dd>训练语料（已按词频统计），初始词表 = 所有出现过的字符</dd></dl>
+        <dl class="op-f"><dt>条件</dt><dd>预先设定目标词表大小（论文约 37000）</dd></dl>
+        <dl class="op-f"><dt>步骤 1</dt><dd>把所有词拆成字符序列，例如 <code>lowest → l o w e s t</code></dd></dl>
+        <dl class="op-f"><dt>步骤 2</dt><dd>统计所有<b>相邻两段</b>的出现次数（按词频加权）</dd></dl>
+        <dl class="op-f"><dt>步骤 3</dt><dd>把出现次数最多的那一对合并成新单位，加入词表</dd></dl>
+        <dl class="op-f"><dt>步骤 4</dt><dd>更新语料（把那一对替换成新单位），回到步骤 2</dd></dl>
+        <dl class="op-f"><dt>结束</dt><dd>词表达到目标大小。此时切任何新词，就按学到的合并规则依次应用</dd></dl>
+        <dl class="op-f err"><dt>易错</dt><dd>① 以为 BPE 按“词”合并——它按“字符对”合并，与语言学无关；
+          ② 以为合并顺序可以打乱——顺序就是规则的一部分，必须固定。</dd></dl>
+      </div>
+    </div>
+
+    <div class="demo" data-w="bpe"></div>
+
+    <h3>特殊符号</h3>
+    <p>除了普通词元，词表里还有几个功能性符号，读论文时经常被忽略：</p>
+    <ul>
+      <li><code>&lt;sos&gt;</code> / <code>&lt;bos&gt;</code>：序列开头，告诉解码器“开始生成”。</li>
+      <li><code>&lt;eos&gt;</code>：序列结束，模型输出它就停止。</li>
+      <li><code>&lt;pad&gt;</code>：批次内补齐长度用的占位符，必须被掩码掉，否则会污染注意力。</li>
+      <li><code>&lt;unk&gt;</code>：未登录词。BPE 下几乎不会用到。</li>
+    </ul>
+  </div>
+
+  <h2><span class="n">3</span>从词元到概率：输出层在做什么</h2>
+  <div class="sec">
+    <p>解码器最后一层的输出是每个位置一个 512 维向量。要把它变成“下一个词是 X 的概率”，需要两步：</p>
+    <div class="op">
+      <div class="op-h"><span class="i">2</span>输出层：512 维 → 37000 个概率<span class="tg">2 步</span></div>
+      <div class="op-b">
+        <dl class="op-f"><dt>输入</dt><dd>解码器最后一个位置的 512 维隐状态 h</dd></dl>
+        <dl class="op-f"><dt>条件</dt><dd>需要一个 512×37000 的线性层（论文与嵌入层共享权重）</dd></dl>
+        <dl class="op-f"><dt>步骤 1</dt><dd>线性变换：<code>logits = hW + b</code>，得到 37000 个任意实数分数</dd></dl>
+        <dl class="op-f"><dt>步骤 2</dt><dd>softmax：把 37000 个分数变成总和为 1 的概率</dd></dl>
+        <dl class="op-f"><dt>结果</dt><dd>一个 37000 维的概率分布；概率最高的词就是贪心解码的输出</dd></dl>
+        <dl class="op-f err"><dt>易错</dt><dd>① 把 logits 当概率（它们可能为负、和不为 1）；
+          ② 以为输出层只算一个词——它每步都要对整个词表打分，这是推理慢的主要原因之一。</dd></dl>
+      </div>
+    </div>
+
+    <div class="def">
+      <div class="def-h"><b>logits</b><i>logits</i><span class="loc">§3.4</span></div>
+      <p><b>是什么：</b>softmax 之前的原始分数，可正可负、没有上界、总和不为 1。</p>
+      <p><b>为什么要区分：</b>很多实现细节（数值稳定性、温度采样、蒸馏）都作用在 logits 上，而不是概率上。</p>
+      <div class="x">易错：论文说 “linear transformation … to predicted next-token probabilities”，中间的 softmax 是默认省略的，不要以为线性层直接输出概率。</div>
+    </div>
+  </div>
+
+  <h2><span class="n">4</span>交叉熵与困惑度：训练时看什么</h2>
+  <div class="sec">
+    <div class="def">
+      <div class="def-h"><b>交叉熵</b><i>cross-entropy</i><span class="loc">§5 训练目标；§6.2</span></div>
+      <p><b>是什么：</b><code>loss = −log P(正确词)</code>。模型给正确词的概率越高，损失越小。</p>
+      <p><b>数值直觉：</b>P=1.0 → 损失 0；P=0.5 → 0.69；P=0.1 → 2.30；P=0.01 → 4.61。
+        <b>概率每差 10 倍，损失差 2.3</b>。</p>
+      <p><b>为什么用它：</b>它对“自信地答错”惩罚极重（P 接近 0 时 −log 爆炸），
+        迫使模型在不确定时保持谦逊——这正是标签平滑想进一步强化的行为。</p>
+      <div class="x">易错：交叉熵是对<b>每个位置</b>算一次再平均。论文表 3 里的 PPL 是按 word-piece 计算的，不能与按词计算的困惑度直接比较。</div>
+    </div>
+
+    <div class="def">
+      <div class="def-h"><b>困惑度</b><i>perplexity, PPL</i><span class="loc">§6.2 表 3</span></div>
+      <p><b>是什么：</b>交叉熵的指数：<code>PPL = e^(平均交叉熵)</code>。</p>
+      <p><b>怎么读：</b>可以粗略理解为“模型每步平均在多少个词之间犹豫”。PPL=4.92 大致相当于“平均在 5 个词里挑”。
+        越低越好。</p>
+      <div class="x">易错：PPL 依赖分词方式。词表不同，PPL 不可比。所以论文特意注明表 3 的 PPL 是 per-wordpiece。</div>
+    </div>
+  </div>
+
+  <h2><span class="n">5</span>BLEU：翻译质量怎么量</h2>
+  <div class="sec">
+    <div class="def">
+      <div class="def-h"><b>BLEU</b><i>bilingual evaluation understudy</i><span class="loc">§6.1 表 2</span></div>
+      <p><b>是什么：</b>把机器译文和人工参考译文比较，看有多少 n-gram（连续 1、2、3、4 个词）重合。
+        结果是一个 0–100 的数，越高越好。</p>
+      <p><b>核心思想：</b>不要求逐字相同，只看“片段重合度”。所以语序略有不同也能拿分。</p>
+      <p><b>简短惩罚（brevity penalty）：</b>如果译文比参考短很多，精度会虚高（少说少错），
+        所以乘一个惩罚项压回去。</p>
+      <div class="x">易错：BLEU 只看表面重合，不理解语义。同义改写会掉分；它也对分词敏感。
+        所以论文同时报告 PPL 和人工评价，不只靠 BLEU。</div>
+    </div>
+
+    <div class="tw">
+      <table class="tb">
+        <thead><tr><th>指标</th><th>衡量什么</th><th>越高越好？</th><th>论文里的用法</th></tr></thead>
+        <tbody>
+          <tr><td><b>交叉熵 / PPL</b></td><td>逐词预测的把握程度</td><td>越低越好</td><td>表 3 消融实验（dev 集）</td></tr>
+          <tr><td><b>BLEU</b></td><td>整句与参考译文的片段重合</td><td>越高越好</td><td>表 2 主结果（test 集）</td></tr>
+          <tr><td><b>训练成本 FLOPs</b></td><td>训练总计算量</td><td>越低越好</td><td>表 2 与其它模型对比</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note">
+      <p><b>为什么这三个指标要一起看：</b>PPL 低但 BLEU 不高，说明模型“很会猜词但组句不行”；
+        BLEU 高但成本爆炸，说明方法不实用。论文的卖点恰恰是<b>三者同时占优</b>：
+        BLEU 最高、PPL 最低、FLOPs 只有对手的几分之一。</p>
+    </div>
+  </div>
+
+  <h2><span class="n">6</span>论文用的数据规模</h2>
+  <div class="sec">
+    <div class="tw">
+      <table class="tb">
+        <thead><tr><th>任务</th><th>语料</th><th>规模</th><th>分词</th></tr></thead>
+        <tbody>
+          <tr><td>英→德</td><td>WMT 2014 EN-DE</td><td>约 <b>450 万</b> 句对</td><td>BPE，共享词表约 37000</td></tr>
+          <tr><td>英→法</td><td>WMT 2014 EN-FR</td><td>约 <b>3600 万</b> 句对</td><td>word-piece，32000</td></tr>
+          <tr><td>成分句法分析</td><td>WSJ（Penn Treebank）</td><td>约 4 万句（半监督版 1700 万句）</td><td>16K / 32K 词表</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>注意英法是英德的 8 倍数据，这也是为什么同一个模型在英法上 BLEU 能到 41.8（big），
+      而英德只有 28.4——两个任务的难度和数据量本来就不同，不能直接横向比较。</p>
+  </div>
+
+  <div class="summary">
+    <h3>本页要点</h3>
+    <ol>
+      <li>模型处理的是词元编号，不是文字；切词方式（BPE）决定词表大小与序列长度。</li>
+      <li>BPE = 从字符出发，反复合并最高频相邻片段，直到词表达标。</li>
+      <li>输出层把 512 维隐状态投影到词表维度，再 softmax 成概率。</li>
+      <li>交叉熵衡量逐词概率，困惑度是它的指数形式；BLEU 衡量整句片段重合。</li>
+      <li>论文同时报告三者，因为单一指标都会被“取巧”骗过。</li>
+    </ol>
+  </div>
+
+  <h2><span class="n">7</span>自测</h2>
+  <div class="quiz">
+    <div class="qz">
+      <div class="q"><i>Q1</i>词表大小会直接影响下面哪一项？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>注意力头的数量</span></button>
+        <button class="opt" data-ok="1"><i>B</i><span>输出层的宽度（以及嵌入表的大小）</span></button>
+        <button class="opt"><i>C</i><span>位置编码的公式</span></button>
+      </div>
+      <div class="ex">输出层要把 512 维映射到“每个词一个分数”，所以宽度 = 词表大小。嵌入表则是“每个词一个 512 维向量”，行数 = 词表大小。</div>
+    </div>
+    <div class="qz">
+      <div class="q"><i>Q2</i>模型给正确词的概率是 0.01，交叉熵损失约是多少？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>0.01</span></button>
+        <button class="opt"><i>B</i><span>1.0</span></button>
+        <button class="opt" data-ok="1"><i>C</i><span>约 4.6</span></button>
+      </div>
+      <div class="ex">−ln(0.01) ≈ 4.605，以 2 为底约 6.64。论文用的是自然对数（nats）。概率越低，惩罚增长得越快。</div>
+    </div>
+    <div class="qz">
+      <div class="q"><i>Q3</i>BLEU 分数高，能说明什么？</div>
+      <div class="opts">
+        <button class="opt" data-ok="1"><i>A</i><span>译文与参考译文的 n-gram 重合度高</span></button>
+        <button class="opt"><i>B</i><span>译文语义完全正确</span></button>
+        <button class="opt"><i>C</i><span>模型参数量更大</span></button>
+      </div>
+      <div class="ex">BLEU 只看表面片段重合，不理解语义，同义改写会掉分。它是相关性很高的近似指标，不是语义判断。</div>
+    </div>
+  </div>
+
+  <div class="cite">
+    <b>原文出处</b>
+    §5.1 Training Data and Batching（BPE、词表规模、批内词元数）；§3.4 Embeddings and Softmax（输出层与权重共享）；
+    §6.1（BLEU、beam search 与长度惩罚）；§6.2 表 3（per-wordpiece 的 PPL 说明）。
+  </div>
+
+  <div id="termIndex"></div>
+</main>
+<script src="assets/course.js"></script>
+</body>
+</html>

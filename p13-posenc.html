@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page="pe">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>位置编码（§3.5） · Transformer 精读</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<main class="doc" id="doc">
+
+  <header class="lesson-head">
+    <div class="kicker"><span class="sec-no">13</span><span>正文</span><span>·</span><span>§3.5</span></div>
+    <h1>位置编码：给词排座位</h1>
+    <p class="lede">自注意力有一个致命的盲区：它看不见顺序。「猫追狗」和「狗追猫」在它眼里是同一个集合。
+      这一页讲清楚这个盲区从哪来，以及正弦波是怎么补上它的。</p>
+    <div class="meta-row">
+      <span class="pill acc">前置：第 01、08 页</span>
+      <span class="pill">对应：§3.5、式 (3)(4)</span>
+      <span class="pill">核心度 <b>★★★★☆</b></span>
+      <span class="pill">约 <b>25</b> 分钟</span>
+    </div>
+  </header>
+
+  <div class="whybox">
+    <div class="whybox-h">为什么学这一页</div>
+    <div class="whybox-g">
+      <div class="wide"><b>论文位置</b><span>§3.5 式(3)(4)</span></div>
+      <div><b>不学卡在哪</b><span>注意力本身没有顺序概念，不知道模型凭什么知道“谁在第几位”。</span></div>
+      <div><b>它解决什么</b><span>没有它，模型会把一句话当成一袋词，「猫追狗」和「狗追猫」完全一样。</span></div>
+    </div>
+  </div>
+
+  <h2><span class="n">1</span>为什么自注意力“看不见顺序”</h2>
+  <div class="sec">
+    <p>看式 (1)：<code>softmax(QK<sup>T</sup>/√d<sub>k</sub>)V</code>。这里面全是矩阵乘法、点积、softmax，
+      没有任何一步依赖“第几个位置”。</p>
+    <p>更严格地说：如果把输入的 n 个词打乱顺序，输出的 n 个向量只会跟着同样打乱——
+      <b>输出与输入是“等变”的</b>。模型无法从表示中区分“谁在前谁在后”。</p>
+
+    <div class="tw">
+      <table class="tb">
+        <thead><tr><th>输入</th><th>没有位置编码时，模型看到的东西</th></tr></thead>
+        <tbody>
+          <tr><td>猫 追 狗</td><td rowspan="2" style="vertical-align:middle">同一个向量集合，只是排列不同<br>
+            <span style="font-size:12px;color:var(--ink-3)">“谁追谁”这层关系完全丢失</span></td></tr>
+          <tr><td>狗 追 猫</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="def">
+      <div class="def-h"><b>位置编码</b><i>positional encoding</i><span class="loc">§3.5、式 (4)</span></div>
+      <p><b>是什么：</b>一个<b>只取决于位置</b>、与内容无关的向量 PE(pos)。把它加到词向量上，
+        让“第几个词”这个信息进入表示。</p>
+      <p><b>为什么用加法而不是拼接：</b>拼接会把维度变成 1024，破坏残差的形状约束；
+        加法保持 512 维，简单且够用。代价是位置信息与语义信息混在同一个向量里，但模型能学会分离。</p>
+      <div class="x">易错：位置编码不是“词向量的一部分”，它是在嵌入之后、进入第一层之前<b>加</b>上去的。
+        编码器和解码器都要加。</div>
+    </div>
+  </div>
+
+  <h2><span class="n">2</span>公式：512 条不同频率的正弦波</h2>
+  <div class="sec">
+    <div class="fm">
+      <span class="v">PE</span>(<span class="v">pos</span>, 2<span class="v">i</span>) <span class="op">=</span>
+      <span class="c">sin</span>( <span class="v">pos</span> / 10000<sup>2<span class="v">i</span>/<span class="v">d</span><sub>model</sub></sup> )
+      &nbsp;&nbsp;
+      <span class="v">PE</span>(<span class="v">pos</span>, 2<span class="v">i</span>+1) <span class="op">=</span>
+      <span class="c">cos</span>( <span class="v">pos</span> / 10000<sup>2<span class="v">i</span>/<span class="v">d</span><sub>model</sub></sup> )
+      <span class="cap">式 (4)。偶数维用 sin，奇数维用 cos；i 是维度序号（0 ≤ i &lt; d<sub>model</sub>/2）</span>
+    </div>
+    <p>注意分母：<code>10000<sup>2i/d_model</sup></code> 是一个随 i 增长的数。i 越大，分母越大，
+      正弦的“角速度”越慢。于是：</p>
+    <ul>
+      <li><b>低维</b>（i 小）：分母接近 1，波长约 2π，位置每加 1 就转一大圈——变化极快。</li>
+      <li><b>高维</b>（i 大）：分母接近 10000，波长约 10000·2π ≈ 62832——在几百个位置内几乎是一条直线。</li>
+      <li>波长构成一个<b>等比数列</b>，从 2π 到 10000·2π。</li>
+    </ul>
+
+    <div class="op">
+      <div class="op-h"><span class="i">1</span>手算一个位置编码值<span class="tg">4 步</span></div>
+      <div class="op-b">
+        <dl class="op-f"><dt>输入</dt><dd>位置 pos = 1，维度序号 i = 0（即第 0 维），d<sub>model</sub> = 512</dd></dl>
+        <dl class="op-f"><dt>条件</dt><dd>偶数维用 sin，奇数维用 cos；同一对 (2i, 2i+1) 共用同一个分母</dd></dl>
+        <dl class="op-f"><dt>步骤 1</dt><dd>算分母：10000<sup>2×0/512</sup> = 10000<sup>0</sup> = 1</dd></dl>
+        <dl class="op-f"><dt>步骤 2</dt><dd>算角度：pos / 分母 = 1 / 1 = 1 弧度</dd></dl>
+        <dl class="op-f"><dt>步骤 3</dt><dd>取 sin：sin(1) ≈ <b>0.841</b>（这就是第 0 维的值）</dd></dl>
+        <dl class="op-f"><dt>结果</dt><dd>PE(1, 0) ≈ 0.841；同位置的第 1 维是 cos(1) ≈ 0.540</dd></dl>
+        <dl class="op-f err"><dt>易错</dt><dd>① 把 2i/d<sub>model</sub> 写成 i/d<sub>model</sub>（分母会算错一半）；
+          ② 用角度制而不是弧度制；③ 以为每维都有独立的频率——实际是每<b>一对</b>维共用一个频率。</dd></dl>
+      </div>
+    </div>
+
+    <h3>高维到底有多慢</h3>
+    <div class="tw">
+      <table class="tb">
+        <thead><tr><th>维度</th><th>分母 10000<sup>2i/512</sup></th><th>pos=1 时的角度</th><th>sin 值</th></tr></thead>
+        <tbody>
+          <tr><td>第 0 维（i=0）</td><td class="num">1</td><td class="num">1.000</td><td class="num">0.841</td></tr>
+          <tr><td>第 40 维（i=20）</td><td class="num">≈ 2.05</td><td class="num">0.487</td><td class="num">0.468</td></tr>
+          <tr><td>第 510 维（i=255）</td><td class="num">≈ 9991</td><td class="num">0.0001</td><td class="num">0.0001</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>所以这个 512 维向量像一台<b>混合进制的计数器</b>：低位飞快翻转，高位几乎不动。
+      每个位置因此得到一个独一无二的“指纹”，而且相邻位置的指纹很像，远处的差别大。</p>
+
+    <div class="demo" data-w="pe"></div>
+  </div>
+
+  <h2><span class="n">3</span>为什么用正弦，而不是直接编号</h2>
+  <div class="sec">
+    <p>最朴素的做法是给每个位置一个整数 1、2、3……但有两个问题：</p>
+    <ul>
+      <li><b>无界。</b>位置 1000 的值比位置 1 大 1000 倍，会压制词向量，而且模型没见过的长度会直接崩。</li>
+      <li><b>没有相对关系。</b>整数之间只有大小，没有“距离相同”的结构。而语言关心的是相对位置（“往前 3 个词”）。</li>
+    </ul>
+
+    <h3>关键性质：相对偏移可以写成线性变换</h3>
+    <p>论文说：“for any fixed offset k, PE<sub>pos+k</sub> can be represented as a linear function of PE<sub>pos</sub>.”</p>
+    <p>原因来自三角恒等式：<code>sin(a+b) = sin a cos b + cos a sin b</code>。
+      也就是说，位置 pos+k 的那一对 (sin, cos)，可以由位置 pos 的那一对，乘以一个<b>只与 k 有关</b>的旋转矩阵得到。</p>
+    <div class="fm">
+      <span style="font-size:15px">
+      [ sin(ω(pos+k)) ]   =  [ cos(ωk)  sin(ωk) ] [ sin(ω·pos) ]<br>
+      [ cos(ω(pos+k)) ]      [ −sin(ωk) cos(ωk) ] [ cos(ω·pos) ]
+      </span>
+      <span class="cap">旋转矩阵只依赖 k，与 pos 无关——所以模型可以用同一套操作处理任意距离</span>
+    </div>
+    <p>这带来一个实用后果：模型很容易学会“看相对位置”这种操作，而不必对每个绝对位置单独记忆。</p>
+
+    <h3>另一个理由：可以外推</h3>
+    <p>正弦编码是<b>公式生成</b>的，不依赖训练时见过的最大长度。训练时最长 100 个词，推理时给 200 个词，
+      公式照样能算出值。可学习的位置向量就不行——超出词表范围就没有参数了。</p>
+
+    <div class="note warn">
+      <p><b>但作者很诚实：</b>表 3 第 (E) 行显示，换成可学习的位置嵌入，结果几乎一样（dev BLEU 25.7 vs 25.8）。
+        所以“正弦更好”并没有被实验证明，它只是<b>更方便外推</b>。这一点经常被二手资料夸大。</p>
+    </div>
+  </div>
+
+  <h2><span class="n">4</span>几个常见追问</h2>
+  <div class="sec">
+    <h4>为什么编码器和解码器用同一套公式？</h4>
+    <p>因为位置编码与语言无关，只描述“第几个”。两边独立计算即可，不需要共享参数（它本来就没有参数）。</p>
+
+    <h4>位置编码会被训练吗？</h4>
+    <p>不会。它是固定公式算出来的常量，不参与梯度更新。整个模型里唯一“免费”的信息就是它。</p>
+
+    <h4>为什么是 10000 这个数？</h4>
+    <p>论文没有解释。它决定了最长有效波长：10000·2π ≈ 62832，远大于任何实际句子长度，
+      保证在常用范围内不会出现“两个位置编码撞车”。后来的实现大多沿用 10000。</p>
+
+    <h4>后来有什么改进？</h4>
+    <p>可学习的绝对位置（BERT）、相对位置偏置（T5）、旋转位置编码 RoPE（把位置做成旋转施加到 Q/K 上，
+      LLaMA 等在用）、ALiBi（用距离惩罚代替编码）。它们要解决的问题都一样：<b>让模型知道相对距离，并能外推</b>。</p>
+  </div>
+
+  <div class="summary">
+    <h3>本页要点</h3>
+    <ol>
+      <li>自注意力对顺序不敏感（置换等变），必须显式注入位置信息。</li>
+      <li>做法是把一个只与位置有关的 512 维向量加到词嵌入上。</li>
+      <li>每个维度一对 sin/cos，频率按等比数列从 2π 到 10000·2π。</li>
+      <li>低维变化快、高维变化慢，合起来构成每个位置的唯一“指纹”。</li>
+      <li>选正弦的理由是相对位置可线性表示 + 可外推；实验上与可学习版本几乎持平。</li>
+    </ol>
+  </div>
+
+  <h2><span class="n">5</span>自测</h2>
+  <div class="quiz">
+    <div class="qz">
+      <div class="q"><i>Q1</i>如果不加位置编码，模型最不可能出现下面哪种表现？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>把“狗追猫”和“猫追狗”当成同一句话</span></button>
+        <button class="opt"><i>B</i><span>无法区分词序</span></button>
+        <button class="opt" data-ok="1"><i>C</i><span>完全无法训练，损失不下降</span></button>
+      </div>
+      <div class="ex">没有位置编码仍能训练、也能做词袋级别的任务，只是学不到语序相关的关系。它是“能力缺失”，不是“训练失败”。</div>
+    </div>
+    <div class="qz">
+      <div class="q"><i>Q2</i>PE 里维度序号 i 越大，正弦的波长怎么变？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>越短，变化越快</span></button>
+        <button class="opt" data-ok="1"><i>B</i><span>越长，变化越慢</span></button>
+        <button class="opt"><i>C</i><span>与 i 无关</span></button>
+      </div>
+      <div class="ex">分母 10000^(2i/d) 随 i 指数增长，角度 pos/分母 变小，波长变长。最高维在几百个位置内几乎不变。</div>
+    </div>
+    <div class="qz">
+      <div class="q"><i>Q3</i>论文为什么最终选正弦而不是可学习位置向量？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>因为实验证明正弦明显更好</span></button>
+        <button class="opt" data-ok="1"><i>B</i><span>两者效果几乎相同，但正弦可能外推到更长的序列</span></button>
+        <button class="opt"><i>C</i><span>因为可学习向量参数量太大</span></button>
+      </div>
+      <div class="ex">表 3 第 (E) 行：25.7 vs 25.8，几乎一样。选正弦的理由是外推能力，不是效果。</div>
+    </div>
+  </div>
+
+  <div class="cite">
+    <b>原文出处</b>
+    §3.5 Positional Encoding（式 4、波长几何级数、相对位置的线性表示、与可学习版本的对比）；
+    表 3 第 (E) 行给出 25.7 vs 25.8 的实测结果。
+  </div>
+
+  <div id="termIndex"></div>
+</main>
+<script src="assets/course.js"></script>
+</body>
+</html>

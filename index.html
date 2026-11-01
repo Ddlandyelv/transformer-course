@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page="index">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>学习地图 · Transformer 精读</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<main class="doc" id="doc">
+
+  <header class="lesson-head">
+    <div class="kicker"><span class="sec-no">00</span><span>开始</span><span>·</span><span>READ ME FIRST</span></div>
+    <h1>《Attention Is All You Need》逐节精读</h1>
+    <p class="lede">这不是一篇导读，而是一套课。论文一共 8 页、7 个章节，我们把它拆成 <b>24 个独立页面</b>，
+      每页只讲一件事；讲之前先补它需要的前置知识，讲的时候每个名词都给定义和出处，讲完给小结和自测。</p>
+    <div class="meta-row">
+      <span class="pill acc">24 个页面</span>
+      <span class="pill">5 页从零入口</span>
+      <span class="pill">4 页前置知识</span>
+      <span class="pill">13 页正文精读</span>
+      <span class="pill">约 <b>9</b> 小时</span>
+      <span class="pill">NIPS 2017 · arXiv:1706.03762</span>
+    </div>
+  </header>
+
+  <h2><span class="n">1</span>先说清楚：这份材料解决什么问题</h2>
+  <div class="sec">
+    <p>读 Transformer 论文最常见的困境不是“不够聪明”，而是<strong>三个断点</strong>：</p>
+    <ul>
+      <li><b>符号断点。</b>论文大量使用 <code>Q</code>、<code>K</code>、<code>V</code>、<code>d<sub>model</sub></code>、<code>√d<sub>k</sub></code> 这类符号，
+        却没有解释它们为什么长这样。看不懂符号，后面每一句都读不下去。</li>
+      <li><b>前置断点。</b>论文假设你已知什么是词嵌入、什么是 softmax、什么是编码器-解码器、什么是 BLEU。
+        这些在 2017 年是常识，对今天的初学者不是。</li>
+      <li><b>顺序断点。</b>论文的写作顺序是“结论先行”的学术写法：摘要就抛出全部结论，第 3 章一口气讲完所有组件。
+        而人理解一个系统，需要的是“先有直觉，再有细节”。</li>
+    </ul>
+    <p>所以这套课做了三件事：<b>把前置知识单独抽成 4 页</b>、<b>把正文拆成 13 页并重排顺序</b>、
+      <b>给每个术语标注它在论文里出现的位置</b>。你不必从头到尾读，可以只挑需要的那一页。</p>
+  </div>
+
+  <h2><span class="n">2</span>三种学法，按你的情况选</h2>
+  <div class="tw">
+    <table class="tb">
+      <thead><tr><th>你的情况</th><th>建议路线</th><th>用时</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><b>完全零基础</b><br><span style="font-size:12px">没学过神经网络</span></td>
+          <td><b>先读 0.1 → 0.5（第零幕，五页，不出现任何公式）</b>，再按 01 → 17 顺序全读。前置四页不要跳，第 08 页（注意力）可以读两遍。</td>
+          <td class="num">12 小时</td>
+        </tr>
+        <tr>
+          <td><b>会一点深度学习</b><br><span style="font-size:12px">知道梯度、softmax、CNN</span></td>
+          <td>0.1–0.5 可跳，但 <a href="p00c-exp.html">0.3（e 和 log）</a>值得扫一眼 → 01、02 快速扫过 → 03、04 精读 → 05 起按顺序。<b>14 页（为什么用自注意力）</b>是理解设计动机的关键，别跳。</td>
+          <td class="num">5 小时</td>
+        </tr>
+        <tr>
+          <td><b>只想搞懂机制</b><br><span style="font-size:12px">不关心实验细节</span></td>
+          <td>07 → 08 → 09 → 10 → 13，五页看完就能画出完整架构图。实验部分（16）选读。</td>
+          <td class="num">2.5 小时</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2><span class="n">3</span>论文结构 ↔ 本课页面 对照表</h2>
+  <div class="sec">
+    <p>左边是论文原文章节，右边是对应的页面。凡是论文里只有一段话、但概念很重的地方，我们都单独拆了一页。</p>
+  </div>
+  <div class="tw">
+    <table class="tb">
+      <thead><tr><th>论文位置</th><th>内容</th><th>对应页面</th></tr></thead>
+      <tbody>
+        <tr><td>Abstract · §1</td><td>摘要与引言：主张、贡献、结果</td><td><a href="p05-intro.html">05 摘要与引言</a></td></tr>
+        <tr><td>§2</td><td>背景：相关工作与自注意力的历史</td><td><a href="p06-background.html">06 背景</a></td></tr>
+        <tr><td>§3 · §3.1</td><td>模型架构总览、编码器解码器栈</td><td><a href="p07-stacks.html">07 编码器-解码器栈</a></td></tr>
+        <tr><td>§3.2 · §3.2.1</td><td>注意力、缩放点积注意力</td><td><a href="p08-attention.html">08 缩放点积注意力</a></td></tr>
+        <tr><td>§3.2.2</td><td>多头注意力</td><td><a href="p09-multihead.html">09 多头注意力</a></td></tr>
+        <tr><td>§3.2.3</td><td>三种注意力用法、掩码</td><td><a href="p10-usage.html">10 三种用法与掩码</a></td></tr>
+        <tr><td>§3.3</td><td>逐位置前馈网络</td><td><a href="p11-ffn.html">11 前馈网络</a></td></tr>
+        <tr><td>§3.4</td><td>嵌入与 Softmax、权重共享</td><td><a href="p12-embed.html">12 嵌入与 Softmax</a></td></tr>
+        <tr><td>§3.5</td><td>位置编码</td><td><a href="p13-posenc.html">13 位置编码</a></td></tr>
+        <tr><td>§4 · 表 1</td><td>为什么用自注意力：复杂度对比</td><td><a href="p14-why.html">14 为什么用自注意力</a></td></tr>
+        <tr><td>§5.1–5.4</td><td>训练数据、硬件、优化器、正则</td><td><a href="p15-training.html">15 训练</a></td></tr>
+        <tr><td>§6 · §7 · 表 2/3/4</td><td>实验结果、消融、结论</td><td><a href="p16-results.html">16 结果与结论</a></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2><span class="n">4</span>前置知识：为什么必须补，补了用在哪</h2>
+  <div class="sec">
+    <p>论文默认你会这些。如果跳过，读到第 3 章会反复卡住。这四页不是“顺便补补”，每一个概念在正文里都有明确的落点。</p>
+    <p>而在它们之前还有<b>五页第零幕</b>——专门给“连神经网络是干什么的都不清楚”的人。
+      它不出现公式、不涉及矩阵，只回答一件事：<b>每个零件为什么必须存在</b>。
+      如果你读到某一页突然冒出陌生名词（比如 FFN、softmax 里的 e、位置编码），多半就是从这里缺的：</p>
+  </div>
+  <div class="tw">
+    <table class="tb">
+      <thead><tr><th>前置页</th><th>补什么</th><th>在论文里用在哪</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><a href="p01-math.html">01 向量与矩阵</a></td>
+          <td>向量、矩阵、点积、矩阵乘法、转置、维度</td>
+          <td>没有点积就看不懂 <code>QK<sup>T</sup></code>；没有矩阵乘法就看不懂式(1) 到底在算什么形状</td>
+        </tr>
+        <tr>
+          <td><a href="p02-nn.html">02 神经网络与训练</a></td>
+          <td>线性层、激活函数、损失、梯度、反向传播、学习率、过拟合</td>
+          <td>§3.3 的 FFN 是“线性+ReLU”；§5 整章在讲怎么训；§3.1 的残差是为了让梯度传得下去</td>
+        </tr>
+        <tr>
+          <td><a href="p03-seq.html">03 序列建模与编码器-解码器</a></td>
+          <td>RNN、seq2seq、编码器-解码器范式、长距离依赖</td>
+          <td>§1 的动机、§2 的对比、§4 的表 1 全都在和 RNN 比</td>
+        </tr>
+        <tr>
+          <td><a href="p04-lm.html">04 语言模型与评价指标</a></td>
+          <td>token、BPE、词表、交叉熵、困惑度、BLEU</td>
+          <td>§3.4 嵌入查表、§5.1 BPE 词表、§6 的 BLEU 与 PPL 全是这些</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2><span class="n">5</span>页面之间怎么跳</h2>
+  <div class="sec">
+    <ul>
+      <li><b>左侧目录</b>：按“前置 / 正文 / 附录”分组，随时可跳；每页底部有上一页、下一页。</li>
+      <li><b>带下划线的术语</b>：鼠标悬停（手机点一下）弹出白话定义和<b>论文出处</b>；点一下跳到术语总表。</li>
+      <li><b>每页末尾的「本页术语速查」</b>：自动汇总本页出现过的所有术语，不会漏。</li>
+      <li><b>「标记本页为学完」</b>：进度存在浏览器本地，左侧进度条会跟着动。</li>
+    </ul>
+  </div>
+
+  <h2><span class="n">6</span>全部页面</h2>
+  <div class="sec">
+    <p style="font-size:13.5px;color:var(--ink-3)">共 24 页。浅蓝底为<b>第零幕</b>，完全零基础入口，从“为什么需要神经网络”讲起；灰底为前置知识，可按需跳过（但不建议）。</p>
+  </div>
+  <div class="grid2" style="margin-top:16px">
+    <a href="p00a-why.html" style="display:block;border:1px solid var(--accent-line);border-radius:10px;padding:14px 16px;background:var(--accent-soft);text-decoration:none">
+      <div class="kicker" style="font-size:10px">0.1 · 从零</div>
+      <div style="font-size:14px;font-weight:600;margin-top:4px">机器要学会一件事，难在哪</div>
+      <div style="font-size:12px;color:var(--ink-3);margin-top:3px">为什么不能写规则</div>
+    </a>
+    <a href="p00b-neuron.html" style="display:block;border:1px solid var(--accent-line);border-radius:10px;padding:14px 16px;background:var(--accent-soft);text-decoration:none">
+      <div class="kicker" style="font-size:10px">0.2 · 从零</div>
+      <div style="font-size:14px;font-weight:600;margin-top:4px">一个神经元：最小的零件</div>
+      <div style="font-size:12px;color:var(--ink-3);margin-top:3px">权重 / 偏置 / 激活，可手算</div>
+    </a>
+    <a href="p00c-exp.html" style="display:block;border:1px solid var(--accent-line);border-radius:10px;padding:14px 16px;background:var(--accent-soft);text-decoration:none">
+      <div class="kicker" style="font-size:10px">0.3 · 从零</div>
+      <div style="font-size:14px;font-weight:600;margin-top:4px">e 和 log：为什么老是出现</div>
+      <div style="font-size:12px;color:var(--ink-3);margin-top:3px">指数从哪来，softmax 怎么算</div>
+    </a>
+    <a href="p00d-training.html" style="display:block;border:1px solid var(--accent-line);border-radius:10px;padding:14px 16px;background:var(--accent-soft);text-decoration:none">
+      <div class="kicker" style="font-size:10px">0.4 · 从零</div>
+      <div style="font-size:14px;font-weight:600;margin-top:4px">模型怎么“学”：一次训练</div>
+      <div style="font-size:12px;color:var(--ink-3);margin-top:3px">损失 / 梯度 / 学习率</div>
+    </a>
+    <a href="p00e-attention.html" style="display:block;border:1px solid var(--accent-line);border-radius:10px;padding:14px 16px;background:var(--accent-soft);text-decoration:none">
+      <div class="kicker" style="font-size:10px">0.5 · 从零</div>
+      <div style="font-size:14px;font-weight:600;margin-top:4px">为什么需要注意力</div>
+      <div style="font-size:12px;color:var(--ink-3);margin-top:3px">老办法到底哪里不行</div>
+    </a>
+    <a href="p01-math.html" style="display:block;border:1px solid var(--line);border-radius:10px;padding:14px 16px;background:var(--surface);text-decoration:none;border-bottom:1px solid var(--line)">
+      <div class="kicker" style="font-size:10px">01 · 前置</div>
+      <div style="font-size:14px;font-weight:600;margin-top:4px">向量、矩阵与点积</div>
+      <div style="font-size:12px;color:var(--ink-3);margin-top:3px">所有运算的地基</div>
+    </a>
+    <a href="p02-nn.html" style="display:block;border:1px solid var(--line);border-radius:10px;padding:14px 16px;background:var(--surface);text-decoration:none;border-bottom:1px solid var(--line)">
+      <div class="kicker" style="font-size:10px">02 · 前置</div>
+      <div style="font-size:14px;font-weight:600;margin-top:4px">神经网络与训练</div>
+      <div style="font-size:12px;color:var(--ink-3);margin-top:3px">线性层、激活、梯度下降</div>
+    </a>
+    <a href="p03-seq.html" style="display:block;border:1px solid var(--line);border-radius:10px;padding:14px 16px;background:var(--surface);text-decoration:none;border-bottom:1px solid var(--line)">
+      <div class="kicker" style="font-size:10px">03 · 前置</div>
+      <div style="font-size:14px;font-weight:600;margin-top:4px">序列建模与编码器-解码器</div>
+      <div style="font-size:12px;color:var(--ink-3);margin-top:3px">RNN 为什么要被换掉</div>
+    </a>
+    <a href="p04-lm.html" style="display:block;border:1px solid var(--line);border-radius:10px;padding:14px 16px;background:var(--surface);text-decoration:none;border-bottom:1px solid var(--line)">
+      <div class="kicker" style="font-size:10px">04 · 前置</div>
+      <div style="font-size:14px;font-weight:600;margin-top:4px">语言模型、分词与评价指标</div>
+      <div style="font-size:12px;color:var(--ink-3);margin-top:3px">token / BLEU / 困惑度</div>
+    </a>
+    <a href="p05-intro.html" style="display:block;border:1px solid var(--line);border-radius:10px;padding:14px 16px;background:var(--surface);text-decoration:none;border-bottom:1px solid var(--line)">
+      <div class="kicker" style="font-size:10px">05 · 正文</div>
+      <div style="font-size:14px;font-weight:600;margin-top:4px">摘要与引言</div>
+      <div style="font-size:12px;color:var(--ink-3);margin-top:3px">论文到底主张了什么</div>
+    </a>
+    <a href="p06-background.html" style="display:block;border:1px solid var(--line);border-radius:10px;padding:14px 16px;background:var(--surface);text-decoration:none;border-bottom:1px solid var(--line)">
+      <div class="kicker" style="font-size:10px">06 · 正文</div>
+      <div style="font-size:14px;font-weight:600;margin-top:4px">背景</div>
+      <div style="font-size:12px;color:var(--ink-3);margin-top:3px">卷积模型、自注意力的前史</div>
+    </a>
+    <a href="p07-stacks.html" style="display:block;border:1px solid var(--line);border-radius:10px;padding:14px 16px;background:var(--surface);text-decoration:none;border-bottom:1px solid var(--line)">
+      <div class="kicker" style="font-size:10px">07 · 正文</div>
+      <div style="font-size:14px;font-weight:600;margin-top:4px">编码器-解码器栈</div>
+      <div style="font-size:12px;color:var(--ink-3);margin-top:3px">6 层、残差、Add &amp; Norm</div>
+    </a>
+    <a href="p08-attention.html" style="display:block;border:1px solid var(--line);border-radius:10px;padding:14px 16px;background:var(--surface);text-decoration:none;border-bottom:1px solid var(--line)">
+      <div class="kicker" style="font-size:10px">08 · 正文</div>
+      <div style="font-size:14px;font-weight:600;margin-top:4px">缩放点积注意力</div>
+      <div style="font-size:12px;color:var(--ink-3);margin-top:3px">全文最核心的一页</div>
+    </a>
+    <a href="p09-multihead.html" style="display:block;border:1px solid var(--line);border-radius:10px;padding:14px 16px;background:var(--surface);text-decoration:none;border-bottom:1px solid var(--line)">
+      <div class="kicker" style="font-size:10px">09 · 正文</div>
+      <div style="font-size:14px;font-weight:600;margin-top:4px">多头注意力</div>
+      <div style="font-size:12px;color:var(--ink-3);margin-top:3px">八个视角与 W^O</div>
+    </a>
+    <a href="p10-usage.html" style="display:block;border:1px solid var(--line);border-radius:10px;padding:14px 16px;background:var(--surface);text-decoration:none;border-bottom:1px solid var(--line)">
+      <div class="kicker" style="font-size:10px">10 · 正文</div>
+      <div style="font-size:14px;font-weight:600;margin-top:4px">三种用法与掩码</div>
+      <div style="font-size:12px;color:var(--ink-3);margin-top:3px">自注意力 / 交叉注意力 / 因果掩码</div>
+    </a>
+    <a href="p11-ffn.html" style="display:block;border:1px solid var(--line);border-radius:10px;padding:14px 16px;background:var(--surface);text-decoration:none;border-bottom:1px solid var(--line)">
+      <div class="kicker" style="font-size:10px">11 · 正文</div>
+      <div style="font-size:14px;font-weight:600;margin-top:4px">前馈网络</div>
+      <div style="font-size:12px;color:var(--ink-3);margin-top:3px">为什么必须要有非线性</div>
+    </a>
+    <a href="p12-embed.html" style="display:block;border:1px solid var(--line);border-radius:10px;padding:14px 16px;background:var(--surface);text-decoration:none;border-bottom:1px solid var(--line)">
+      <div class="kicker" style="font-size:10px">12 · 正文</div>
+      <div style="font-size:14px;font-weight:600;margin-top:4px">嵌入与 Softmax</div>
+      <div style="font-size:12px;color:var(--ink-3);margin-top:3px">查表、权重共享、√d_model</div>
+    </a>
+    <a href="p13-posenc.html" style="display:block;border:1px solid var(--line);border-radius:10px;padding:14px 16px;background:var(--surface);text-decoration:none;border-bottom:1px solid var(--line)">
+      <div class="kicker" style="font-size:10px">13 · 正文</div>
+      <div style="font-size:14px;font-weight:600;margin-top:4px">位置编码</div>
+      <div style="font-size:12px;color:var(--ink-3);margin-top:3px">正弦波与相对位置</div>
+    </a>
+    <a href="p14-why.html" style="display:block;border:1px solid var(--line);border-radius:10px;padding:14px 16px;background:var(--surface);text-decoration:none;border-bottom:1px solid var(--line)">
+      <div class="kicker" style="font-size:10px">14 · 正文</div>
+      <div style="font-size:14px;font-weight:600;margin-top:4px">为什么用自注意力</div>
+      <div style="font-size:12px;color:var(--ink-3);margin-top:3px">表 1 的三个指标</div>
+    </a>
+    <a href="p15-training.html" style="display:block;border:1px solid var(--line);border-radius:10px;padding:14px 16px;background:var(--surface);text-decoration:none;border-bottom:1px solid var(--line)">
+      <div class="kicker" style="font-size:10px">15 · 正文</div>
+      <div style="font-size:14px;font-weight:600;margin-top:4px">训练</div>
+      <div style="font-size:12px;color:var(--ink-3);margin-top:3px">数据、Adam、warmup、正则</div>
+    </a>
+    <a href="p16-results.html" style="display:block;border:1px solid var(--line);border-radius:10px;padding:14px 16px;background:var(--surface);text-decoration:none;border-bottom:1px solid var(--line)">
+      <div class="kicker" style="font-size:10px">16 · 正文</div>
+      <div style="font-size:14px;font-weight:600;margin-top:4px">结果、消融与结论</div>
+      <div style="font-size:12px;color:var(--ink-3);margin-top:3px">28.4 BLEU 是怎么来的</div>
+    </a>
+    <a href="p17-glossary.html" style="display:block;border:1px solid var(--line);border-radius:10px;padding:14px 16px;background:var(--surface);text-decoration:none;border-bottom:1px solid var(--line)">
+      <div class="kicker" style="font-size:10px">17 · 附录</div>
+      <div style="font-size:14px;font-weight:600;margin-top:4px">术语总表与公式速查</div>
+      <div style="font-size:12px;color:var(--ink-3);margin-top:3px">所有术语都在这一页</div>
+    </a>
+    <a href="p18-progress.html" style="display:block;border:1px solid var(--line);border-radius:10px;padding:14px 16px;background:var(--surface);text-decoration:none;border-bottom:1px solid var(--line)">
+      <div class="kicker" style="font-size:10px">18 · 附录</div>
+      <div style="font-size:14px;font-weight:600;margin-top:4px">学习进度与掌握度</div>
+      <div style="font-size:12px;color:var(--ink-3);margin-top:3px">对错记录 · 薄弱页 · 错题本</div>
+    </a>
+  </div>
+
+  <div class="note">
+    <p><b>关于准确性。</b>所有章节编号、公式、超参数、实验数字均核对自 arXiv:1706.03762v7 原文。
+      每页底部都有「原文出处」，写明该页内容对应论文的哪一节、哪个公式或哪张表，方便你回查。</p>
+    <p>页内用于演示的注意力权重、概率数值是为了教学人为构造的<b>示意数据</b>，不是论文附录里的真实可视化结果——这一点在每个演示里都做了标注。</p>
+  </div>
+
+  <div class="cite">
+    <b>主要来源</b>
+    Vaswani, A., Shazeer, N., Parmar, N., Uszkoreit, J., Jones, L., Gomez, A. N., Kaiser, Ł., &amp; Polosukhin, I. (2017).
+    <i>Attention Is All You Need</i>. NeurIPS 2017. arXiv:1706.03762v7.
+    本课页面编号与论文节号一一对应，引用时请以原文为准。
+  </div>
+
+  <div id="termIndex"></div>
+</main>
+<script src="assets/course.js"></script>
+</body>
+</html>

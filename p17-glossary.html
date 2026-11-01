@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page="gloss">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>术语总表与公式速查 · Transformer 精读</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<main class="doc" id="doc">
+
+  <header class="lesson-head">
+    <div class="kicker"><span class="sec-no">17</span><span>附录</span><span>·</span><span>REFERENCE</span></div>
+    <h1>术语总表与公式速查</h1>
+    <p class="lede">全站出现过的所有术语都在这一页，按字母序排列，每条都标注了论文出处。
+      复习时只看这一页，就能把整篇论文串起来。</p>
+    <div class="meta-row">
+      <span class="pill acc">全站术语</span>
+      <span class="pill">公式速查</span>
+      <span class="pill">综合自测</span>
+    </div>
+  </header>
+
+  <div class="whybox">
+    <div class="whybox-h">为什么学这一页</div>
+    <div class="whybox-g">
+      <div class="wide"><b>论文位置</b><span>全文</span></div>
+      <div><b>不学卡在哪</b><span>读到陌生词要回翻前面几页，打断阅读节奏。</span></div>
+      <div><b>它解决什么</b><span>把所有术语、公式、超参数集中到一处，随时可查。</span></div>
+    </div>
+  </div>
+
+  <h2><span class="n">1</span>公式速查</h2>
+  <div class="sec">
+    <div class="tw">
+      <table class="tb">
+        <thead><tr><th>公式</th><th>一句话解释</th><th>出处</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>softmax(QK<sup>T</sup>/√d<sub>k</sub>)V</code></td>
+            <td>打分 → 缩放 → 归一化 → 加权求和，注意力全过程</td>
+            <td>式 (1)</td>
+          </tr>
+          <tr>
+            <td><code>head<sub>i</sub> = Attention(QW<sub>i</sub><sup>Q</sup>, KW<sub>i</sub><sup>K</sup>, VW<sub>i</sub><sup>V</sup>)</code></td>
+            <td>单头的计算，每头有自己的投影矩阵</td>
+            <td>式 (2) 下</td>
+          </tr>
+          <tr>
+            <td><code>Concat(head<sub>1</sub>…head<sub>h</sub>)W<sup>O</sup></code></td>
+            <td>拼接 + 融合，把 h 个头合成一个 512 维输出</td>
+            <td>式 (2) 上</td>
+          </tr>
+          <tr>
+            <td><code>max(0, xW<sub>1</sub>+b<sub>1</sub>)W<sub>2</sub>+b<sub>2</sub></code></td>
+            <td>前馈网络：升维 → ReLU → 降维</td>
+            <td>式 (2)</td>
+          </tr>
+          <tr>
+            <td><code>LayerNorm(x + Sublayer(x))</code></td>
+            <td>每个子层外面套的残差 + 归一化</td>
+            <td>§3.1</td>
+          </tr>
+          <tr>
+            <td><code>PE(pos,2i) = sin(pos/10000<sup>2i/d<sub>model</sub></sup>)</code></td>
+            <td>偶数维的位置编码</td>
+            <td>式 (4)</td>
+          </tr>
+          <tr>
+            <td><code>PE(pos,2i+1) = cos(pos/10000<sup>2i/d<sub>model</sub></sup>)</code></td>
+            <td>奇数维的位置编码</td>
+            <td>式 (4)</td>
+          </tr>
+          <tr>
+            <td><code>d<sub>model</sub><sup>−0.5</sup> · min(step<sup>−0.5</sup>, step·warmup<sup>−1.5</sup>)</code></td>
+            <td>学习率：先热身，再按平方根倒数衰减</td>
+            <td>式 (3)</td>
+          </tr>
+          <tr>
+            <td><code>e<sup>z<sub>i</sub></sup> / Σ<sub>j</sub> e<sup>z<sub>j</sub></sup></code></td>
+            <td>softmax 本身：指数归一化</td>
+            <td>§3.2.1</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <h2><span class="n">2</span>术语总表</h2>
+  <div class="sec">
+    <p style="font-size:13.5px;color:var(--ink-2)">共 <b id="gcount">0</b> 条。输入关键词可过滤。</p>
+    <input id="gfilter" type="text" placeholder="搜索术语，例如 attention、掩码、维度…"
+      style="width:100%;margin-top:10px;padding:10px 13px;border:1px solid var(--line);border-radius:9px;
+      background:var(--surface);font-size:13.5px;font-family:inherit;color:var(--ink);outline:none">
+    <div class="gloss" id="allGloss" style="margin-top:14px"></div>
+    <p id="gnone" class="hide" style="font-size:13px;color:var(--ink-3);margin-top:14px">没有匹配的术语。</p>
+  </div>
+
+  <h2><span class="n">3</span>综合自测</h2>
+  <div class="quiz">
+    <div class="qz">
+      <div class="q"><i>Q1</i>整个 Transformer 里，非线性来自哪里？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>softmax</span></button>
+        <button class="opt" data-ok="1"><i>B</i><span>前馈网络里的 ReLU（以及 softmax 本身）</span></button>
+        <button class="opt"><i>C</i><span>位置编码</span></button>
+      </div>
+      <div class="ex">注意力的加权平均是线性的，层归一化是仿射变换。真正引入非线性的是 FFN 的 ReLU；softmax 也是非线性的，但它不混合特征维度。</div>
+    </div>
+    <div class="qz">
+      <div class="q"><i>Q2</i>如果把 d<sub>model</sub> 从 512 改成 1024，下面哪个数<b>不会</b>自动跟着变？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>每个头的维度 d<sub>k</sub></span></button>
+        <button class="opt"><i>B</i><span>前馈网络中间层 d<sub>ff</sub></span></button>
+        <button class="opt" data-ok="1"><i>C</i><span>注意力头数 h</span></button>
+      </div>
+      <div class="ex">h 是独立超参。big 模型是 d_model=1024、h=16、d_k=64——d_k 保持不变，靠增加头数来消化多出来的维度。</div>
+    </div>
+    <div class="qz">
+      <div class="q"><i>Q3</i>下面哪一步的顺序是<b>错的</b>？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>QK<sup>T</sup> → 除以 √d<sub>k</sub> → 掩码 → softmax → 乘 V</span></button>
+        <button class="opt" data-ok="1"><i>B</i><span>QK<sup>T</sup> → softmax → 除以 √d<sub>k</sub> → 乘 V</span></button>
+        <button class="opt"><i>C</i><span>投影得 Q/K/V → 打分 → 归一化 → 加权</span></button>
+      </div>
+      <div class="ex">缩放和掩码都必须在 softmax 之前。放在之后，饱和已经发生、归一化也被破坏。</div>
+    </div>
+    <div class="qz">
+      <div class="q"><i>Q4</i>编码器和解码器的参数是共享的吗？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>是，完全相同</span></button>
+        <button class="opt" data-ok="1"><i>B</i><span>不是，6 层各自独立，编解码器也不共享</span></button>
+        <button class="opt"><i>C</i><span>只有注意力层共享</span></button>
+      </div>
+      <div class="ex">原版只有“输入嵌入 / 输出嵌入 / pre-softmax 线性层”三处共享。层与层、编与解都不共享。</div>
+    </div>
+    <div class="qz">
+      <div class="q"><i>Q5</i>为什么解码器需要掩码，而编码器不需要？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>因为编码器输入更短</span></button>
+        <button class="opt" data-ok="1"><i>B</i><span>因为解码器是自回归的，训练时整句并行输入，必须阻止看到未来</span></button>
+        <button class="opt"><i>C</i><span>因为编码器不需要注意力</span></button>
+      </div>
+      <div class="ex">编码器一次性看完整句，没有“未来”的概念；解码器要模拟逐步生成，所以必须遮蔽右侧。</div>
+    </div>
+  </div>
+
+  <h2><span class="n">4</span>读完之后</h2>
+  <div class="sec">
+    <p>如果这 17 页你都读完了，建议按这个顺序继续：</p>
+    <ol>
+      <li><b>动手实现一遍。</b>不需要 GPU，用 PyTorch 写一个 2 层、4 头的小模型，跑一个玩具复制任务。
+        实现过 <code>QK<sup>T</sup></code> 和掩码，理解会彻底不一样。</li>
+      <li><b>读 ViT 或 GPT-2 的论文。</b>它们把编码器/解码器拆开单用，能反过来加深对原架构的理解。</li>
+      <li><b>读缩放定律（Kaplan et al. 2020）。</b>表 3 的 (C) 组已经暗示了“更大更好”，缩放定律把它变成了定量规律。</li>
+      <li><b>看位置编码的后续。</b>RoPE（旋转位置编码）现在几乎是标配，理解它需要先理解本文 §3.5 的旋转矩阵思想。</li>
+    </ol>
+    <div class="note">
+      <p><b>最后一句话：</b>这篇论文的厉害之处不在于某个公式，而在于它把一个“必须串行”的问题，
+        改写成了一个“可以并行、可以堆叠、可以规模化”的问题。理解了这一点，你就理解了 2017 年之后整个 AI 的走向。</p>
+    </div>
+  </div>
+
+  <div class="cite">
+    <b>来源</b>
+    Vaswani, A., Shazeer, N., Parmar, N., Uszkoreit, J., Jones, L., Gomez, A. N., Kaiser, Ł., &amp; Polosukhin, I. (2017).
+    <i>Attention Is All You Need</i>. Advances in Neural Information Processing Systems 30 (NIPS 2017). arXiv:1706.03762v7.
+  </div>
+
+</main>
+<script src="assets/course.js"></script>
+<script>
+(function(){
+  const host=document.getElementById('allGloss');
+  const keys=Object.keys(G).filter(k=>G[k].n);
+  keys.sort((a,b)=>G[a].e.toLowerCase()<G[b].e.toLowerCase()?-1:1);
+  document.getElementById('gcount').textContent=keys.length;
+  function render(q){
+    q=(q||'').trim().toLowerCase();
+    const list=keys.filter(k=>{
+      if(!q) return true;
+      const g=G[k];
+      return (g.n+' '+g.e+' '+g.d+' '+g.l).toLowerCase().indexOf(q)>=0;
+    });
+    host.innerHTML=list.map(k=>{
+      const g=G[k];
+      return '<div id="'+k+'" style="scroll-margin-top:70px"><dt><b style="font-weight:600">'+g.n+
+        '</b><span>'+g.e+'</span><em>'+g.l+'</em></dt><dd>'+g.d+'</dd></div>';
+    }).join('');
+    document.getElementById('gnone').classList.toggle('hide',list.length>0);
+  }
+  render('');
+  document.getElementById('gfilter').addEventListener('input',e=>render(e.target.value));
+  if(location.hash){
+    const t=document.getElementById(location.hash.slice(1));
+    if(t) setTimeout(()=>t.scrollIntoView({block:'center'}),120);
+  }
+})();
+</script>
+</body>
+</html>

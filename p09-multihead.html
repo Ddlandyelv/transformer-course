@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page="mha">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>多头注意力（§3.2.2） · Transformer 精读</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<main class="doc" id="doc">
+
+  <header class="lesson-head">
+    <div class="kicker"><span class="sec-no">09</span><span>正文</span><span>·</span><span>§3.2.2</span></div>
+    <h1>多头注意力</h1>
+    <p class="lede">一句话里同时存在好几种关系：语法、指代、位置、语义。一组注意力权重只能给出一张“关系图”，
+      于是论文并行做了 8 次，每次看一个子空间。</p>
+    <div class="meta-row">
+      <span class="pill acc">前置：第 08 页</span>
+      <span class="pill">对应：§3.2.2</span>
+      <span class="pill">核心度 <b>★★★★☆</b></span>
+      <span class="pill">约 <b>22</b> 分钟</span>
+    </div>
+  </header>
+
+  <div class="whybox">
+    <div class="whybox-h">为什么学这一页</div>
+    <div class="whybox-g">
+      <div class="wide"><b>论文位置</b><span>§3.2.2 式(2)</span></div>
+      <div><b>不学卡在哪</b><span>不理解为什么要 8 个头；d_k=64 这个数从哪来；8 个头和 1 个头到底差在哪。</span></div>
+      <div><b>它解决什么</b><span>单个头只能学一种“看谁”的模式，多头让模型同时关注指代、相邻、句法等多种关系。</span></div>
+    </div>
+  </div>
+
+  <h2><span class="n">1</span>为什么一个头不够</h2>
+  <div class="sec">
+    <p>第 08 页说过：注意力的输出是“所有 V 的加权平均”。平均是一种压缩，会抹平细节——
+      §2 把它叫做<b>有效分辨率下降</b>。</p>
+    <p>更具体的麻烦是：一句话里的关系不止一种。「它」指代「动物」（语义/指代关系）；
+      「过」支配「马路」（句法关系）；相邻词之间有语序关系。如果只有一组权重，
+      模型只能在这些关系之间折中——想让“指代”突出，就得分掉“句法”的份额。</p>
+    <p>论文的解法很直接：<b>并行做 h 次，每次在不同的子空间里做。</b>
+      “不同子空间”不是抽象说法，而是指每组 Q/K/V 用<b>不同的投影矩阵</b>，
+      把 512 维压到 64 维——不同的 64 维投影会保留不同的信息。</p>
+
+    <div class="def">
+      <div class="def-h"><b>子空间</b><i>representation subspace</i><span class="loc">§3.2.2</span></div>
+      <p><b>是什么：</b>512 维空间里的一个 64 维“切片方向”。用不同的投影矩阵 W，就得到不同的切片。</p>
+      <p><b>类比：</b>同一栋房子，从正面、侧面、俯视各拍一张照片。每张都不完整，但合起来信息更全。</p>
+      <div class="x">易错：8 个头不是把 512 维切成 8 段互不重叠的 64 维（不是切片拼接）。每个头都从完整的 512 维投影，
+        8 个 64 维空间是<b>互相重叠</b>的。</div>
+    </div>
+  </div>
+
+  <h2><span class="n">2</span>公式：先分头，再合并</h2>
+  <div class="sec">
+    <div class="fm">
+      <span class="c">MultiHead</span>(<span class="v">Q</span>,<span class="v">K</span>,<span class="v">V</span>)
+      <span class="op">=</span> <span class="c">Concat</span>(<span class="v">head</span><sub>1</sub>, …, <span class="v">head</span><sub>h</sub>)<span class="v">W</span><sup>O</sup>
+      <span class="cap">式 (2) 上半：把 h 个头的结果拼起来，再乘一个矩阵混合</span>
+    </div>
+    <div class="fm">
+      <span class="v">head</span><sub>i</sub> <span class="op">=</span>
+      <span class="c">Attention</span>(<span class="v">QW</span><sub>i</sub><sup>Q</sup>, <span class="v">KW</span><sub>i</sub><sup>K</sup>, <span class="v">VW</span><sub>i</sub><sup>V</sup>)
+      <span class="cap">式 (2) 下半：第 i 个头用自己的投影矩阵做一次标准注意力</span>
+    </div>
+
+    <div class="op">
+      <div class="op-h"><span class="i">1</span>多头注意力的完整计算<span class="tg">4 阶段</span></div>
+      <div class="op-b">
+        <dl class="op-f"><dt>输入</dt><dd>Q、K、V，形状都是 n×512（n 个词，d<sub>model</sub>=512）</dd></dl>
+        <dl class="op-f"><dt>条件</dt><dd>h 必须整除 d<sub>model</sub>（512 ÷ 8 = 64，每头 d<sub>k</sub>=d<sub>v</sub>=64）</dd></dl>
+        <dl class="op-f"><dt>阶段 1 投影</dt><dd>对每个头 i，用 W<sub>i</sub><sup>Q</sup>（512×64）、W<sub>i</sub><sup>K</sup>、W<sub>i</sub><sup>V</sup> 把 Q/K/V 各压到 64 维。
+          得到 8 组 n×64 的 Q<sub>i</sub>、K<sub>i</sub>、V<sub>i</sub>。</dd></dl>
+        <dl class="op-f"><dt>阶段 2 并行注意力</dt><dd>每个头独立做一次缩放点积注意力，输出 n×64。8 个头之间互不通信，完全并行。</dd></dl>
+        <dl class="op-f"><dt>阶段 3 拼接</dt><dd>把 8 个 n×64 按特征维拼起来，得到 n×512。这一步只是“排在一起”，没有任何混合。</dd></dl>
+        <dl class="op-f"><dt>阶段 4 融合</dt><dd>乘 W<sup>O</sup>（512×512），把拼接结果重新混合成 n×512。</dd></dl>
+        <dl class="op-f"><dt>结果</dt><dd>n×512，形状与输入一致，可以直接接残差。</dd></dl>
+        <dl class="op-f err"><dt>易错</dt><dd>① 以为拼接就够了——<b>不乘 W<sup>O</sup>，8 个头永远互不相干</b>；
+          ② 以为要先拼接再算注意力（顺序反了）；③ 把“拼接”写成“相加”（相加会让不同头的信息在同一个通道里打架）。</dd></dl>
+      </div>
+    </div>
+
+    <h3>维度账本</h3>
+    <div class="tw">
+      <table class="tb">
+        <thead><tr><th>步骤</th><th>形状</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>输入 Q/K/V</td><td class="num">n × 512</td><td>每个词一个 512 维向量</td></tr>
+          <tr><td>W<sub>i</sub><sup>Q</sup> 等</td><td class="num">512 × 64</td><td>每头一套，共 3 套</td></tr>
+          <tr><td>单个头的 Q<sub>i</sub></td><td class="num">n × 64</td><td>投影后</td></tr>
+          <tr><td>单头注意力输出</td><td class="num">n × 64</td><td>head<sub>i</sub></td></tr>
+          <tr><td>拼接后</td><td class="num">n × 512</td><td>8 × 64 = 512</td></tr>
+          <tr><td>W<sup>O</sup></td><td class="num">512 × 512</td><td>融合矩阵</td></tr>
+          <tr><td><b>最终输出</b></td><td class="num"><b>n × 512</b></td><td>与输入同形</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <h2><span class="n">3</span>为什么“8 个头不比 1 个头贵”</h2>
+  <div class="sec">
+    <p>这是多头最漂亮的地方。直觉上做 8 次应该贵 8 倍，实际上几乎一样：</p>
+    <div class="tw">
+      <table class="tb">
+        <thead><tr><th></th><th>单头（d<sub>k</sub>=512）</th><th>多头（h=8, d<sub>k</sub>=64）</th></tr></thead>
+        <tbody>
+          <tr><td>每头的 QK<sup>T</sup> 成本</td><td class="num">n² × 512</td><td class="num">n² × 64</td></tr>
+          <tr><td>总成本</td><td class="num">n² × 512</td><td class="num">8 × n² × 64 = n² × 512</td></tr>
+          <tr><td>参数量（Q/K/V 投影）</td><td class="num">3 × 512×512 ≈ 0.79M</td><td class="num">8 × 3 × 512×64 ≈ 0.79M</td></tr>
+          <tr><td>额外参数</td><td class="num">—</td><td class="num">W<sup>O</sup>：512×512 ≈ 0.26M</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>原文的说法是：“Due to the reduced dimension of each head, the total computational cost is similar to that of
+      single-head attention with full dimensionality.”——<b>同样的预算，换八种视角</b>。</p>
+    <div class="note">
+      <p><b>唯一多出来的开销</b>是 W<sup>O</sup> 那 26 万参数，以及 8 次小矩阵乘法带来的调度开销。
+        在 GPU 上后者可以忽略，因为小矩阵会被合并成批量矩阵乘。</p>
+    </div>
+  </div>
+
+  <h2><span class="n">4</span>看八个头到底在干什么</h2>
+  <div class="sec">
+    <p>下面用同一个句子，切换三个头（以及它们的平均），观察“它”的关注点如何变化。
+      真实模型里的头不一定这么干净，但方向是对的。</p>
+    <div class="demo" data-w="heads"></div>
+    <div class="note warn">
+      <p><b>必须说明：</b>这里的权重是为教学构造的示意数据。论文附录给过真实的注意力可视化，
+        确实能看到“有的头盯相邻词、有的头找动词宾语、有的头处理句法”，但那是<b>事后观察</b>，
+        不是设计时的硬编码，也不是每个头都能被人类解释。</p>
+    </div>
+  </div>
+
+  <h2><span class="n">5</span>实验怎么说</h2>
+  <div class="sec">
+    <p>表 3 的 (A) 组做了头数消融，保持总计算量不变，只改 h 和 d<sub>k</sub>：</p>
+    <div class="tw">
+      <table class="tb">
+        <thead><tr><th>配置</th><th>h</th><th>d<sub>k</sub>=d<sub>v</sub></th><th>dev BLEU</th><th>结论</th></tr></thead>
+        <tbody>
+          <tr><td>base</td><td class="num">8</td><td class="num">64</td><td class="num">25.8</td><td>最优</td></tr>
+          <tr><td>单头</td><td class="num">1</td><td class="num">512</td><td class="num">24.9</td><td>比最优低 <b>0.9</b></td></tr>
+          <tr><td>4 头</td><td class="num">4</td><td class="num">128</td><td class="num">25.5</td><td>接近</td></tr>
+          <tr><td>16 头</td><td class="num">16</td><td class="num">32</td><td class="num">25.8</td><td>持平</td></tr>
+          <tr><td>32 头</td><td class="num">32</td><td class="num">16</td><td class="num">25.4</td><td>开始下降</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>两个结论：① 单头确实明显更差，多头不是可有可无；② 头不是越多越好，32 头时每头只有 16 维，
+      表达能力被压得太窄，反而掉点。</p>
+    <p>另一条相关消融（(B) 组）：把 d<sub>k</sub> 单独调小也会掉分——说明“算匹配度”这件事本身不简单，
+      维度太小就分不清细微差别。</p>
+  </div>
+
+  <h2><span class="n">6</span>易错清单</h2>
+  <div class="sec">
+    <ul>
+      <li>❌ 8 个头 = 512 维切 8 段 → ✅ 每个头都从完整 512 维投影到各自的 64 维。</li>
+      <li>❌ Concat 之后直接输出 → ✅ 必须乘 W<sup>O</sup> 做跨头融合。</li>
+      <li>❌ 头越多效果越好 → ✅ 8 头是实验最优，32 头开始掉。</li>
+      <li>❌ 多头的计算量是单头的 8 倍 → ✅ 总量基本相同（因为每头维度降到 1/8）。</li>
+      <li>❌ 每个头都对应一个语言学功能 → ✅ 功能是训练涌现的，不可预设，也未必可解释。</li>
+    </ul>
+  </div>
+
+  <div class="summary">
+    <h3>本页要点</h3>
+    <ol>
+      <li>多头的动机：单次加权平均会损失分辨率，且只能表达一种关系。</li>
+      <li>每个头有独立的 W<sup>Q</sup>、W<sup>K</sup>、W<sup>V</sup>，把 512 维投到 64 维，各做一次注意力。</li>
+      <li>8 个 n×64 拼接成 n×512，再乘 W<sup>O</sup> 融合——没有 W<sup>O</sup>，各头互不相干。</li>
+      <li>总计算量与单头 512 维基本相同，额外成本主要是 W<sup>O</sup> 的 26 万参数。</li>
+      <li>实验：8 头最优，单头低 0.9 BLEU，32 头开始下降。</li>
+    </ol>
+  </div>
+
+  <h2><span class="n">7</span>自测</h2>
+  <div class="quiz">
+    <div class="qz">
+      <div class="q"><i>Q1</i>把 W<sup>O</sup> 去掉（直接输出拼接结果），最直接的后果是？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>输出维度变成 64，接不上残差</span></button>
+        <button class="opt" data-ok="1"><i>B</i><span>维度仍是 512，但 8 个头的信息永远不在同一个通道里混合</span></button>
+        <button class="opt"><i>C</i><span>没有影响，W<sup>O</sup> 是多余的</span></button>
+      </div>
+      <div class="ex">拼接只是把 8 段并排放，第 1–64 维永远来自头 1。W<sup>O</sup> 才让不同头的信息相加、交互。</div>
+    </div>
+    <div class="qz">
+      <div class="q"><i>Q2</i>h=8、d<sub>model</sub>=512 时，每个头的 d<sub>k</sub> 是多少？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>512</span></button>
+        <button class="opt" data-ok="1"><i>B</i><span>64</span></button>
+        <button class="opt"><i>C</i><span>8</span></button>
+      </div>
+      <div class="ex">512 ÷ 8 = 64。这也解释了为什么 √d<sub>k</sub> = 8。</div>
+    </div>
+    <div class="qz">
+      <div class="q"><i>Q3</i>关于 8 个头的关系，正确的是？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>8 个头把 512 维切成互不重叠的 8 段</span></button>
+        <button class="opt" data-ok="1"><i>B</i><span>每个头都从完整的 512 维投影，8 个子空间彼此重叠</span></button>
+        <button class="opt"><i>C</i><span>8 个头共享同一组投影矩阵</span></button>
+      </div>
+      <div class="ex">W_i 各不相同，且每个都是 512×64——输入是完整的 512 维，所以子空间是重叠的，不是切分。</div>
+    </div>
+  </div>
+
+  <div class="cite">
+    <b>原文出处</b>
+    §3.2.2 Multi-Head Attention（式 2、h=8、d<sub>k</sub>=d<sub>v</sub>=64、总成本论证）；图 2 右；
+    头数与 d<sub>k</sub> 的消融见表 3 的 (A)(B) 组。
+  </div>
+
+  <div id="termIndex"></div>
+</main>
+<script src="assets/course.js"></script>
+</body>
+</html>

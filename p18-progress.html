@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page="progress">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>学习进度与掌握度 · Transformer 精读</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<main class="doc" id="doc">
+
+  <header class="lesson-head">
+    <div class="kicker"><span class="sec-no">18</span><span>附录</span><span>·</span><span>PROGRESS</span></div>
+    <h1>学习进度与掌握度</h1>
+    <p class="lede">这里记录你在 138 道自测题上的每一次作答：答对什么、答错什么、哪几页还没吃透。
+      数据只存在这台设备的浏览器里，换设备不同步。</p>
+    <div class="meta-row">
+      <span class="pill acc">138 道题</span>
+      <span class="pill">本地记录</span>
+      <span class="pill">可随时清空</span>
+    </div>
+  </header>
+
+  <h2><span class="n">1</span>总览</h2>
+  <div class="stat-grid">
+    <div class="stat"><div class="k">已作答</div><div class="v" id="st-answered">0<small>/ 138</small></div><div class="d" id="st-cover">覆盖率 0%</div></div>
+    <div class="stat"><div class="k">正确率</div><div class="v" id="st-rate">—</div><div class="d" id="st-correct">答对 0 题</div></div>
+    <div class="stat"><div class="k">错题</div><div class="v" id="st-wrong">0</div><div class="d">需要回看的知识点</div></div>
+    <div class="stat"><div class="k">已学完</div><div class="v" id="st-done">0<small>页</small></div><div class="d">手动标记 + 有作答</div></div>
+  </div>
+
+  <div class="note" id="masteryNote" style="margin-top:16px">
+    <p id="masteryText">还没有作答记录。任意一页的「自测」里答一题，这里就会开始统计。</p>
+  </div>
+
+  <h2><span class="n">2</span>按页掌握度</h2>
+  <div class="sec">
+    <p>正确率低于 60% 的页会被标红——那通常意味着这一节的概念还没串起来，建议回去重读对应小节，而不是重刷题。</p>
+  </div>
+  <div class="tw">
+    <table class="tb" id="pageTable">
+      <thead><tr><th>页</th><th>标题</th><th class="num">已答</th><th style="width:150px">正确率</th><th>状态</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <h2><span class="n">3</span>需要回头看的页</h2>
+  <div id="weakBox"><div class="empty-box">暂无薄弱页。答过几题后，这里会列出正确率偏低的页面。</div></div>
+
+  <h2><span class="n">4</span>错题本</h2>
+  <div class="sec">
+    <p>按作答时间从新到旧排列。每条都带解析和出处，点页码可以直接跳回原文核对。</p>
+  </div>
+  <div id="wrongList"><div class="empty-box">还没有错题。</div></div>
+
+  <h2><span class="n">5</span>数据</h2>
+  <div class="sec">
+    <p>自测记录保存在浏览器 localStorage（键名 <code>tfc-quiz-v2</code>），学习标记保存在 <code>tfc-done</code>。
+      清理浏览器数据会一并清空；也可以手动重置。</p>
+    <div class="btn-row" style="margin-top:14px">
+      <button class="ctl" id="clearBtn">清空全部自测记录</button>
+      <button class="ctl" id="exportBtn">导出为文本</button>
+      <span style="font-size:11.5px;color:var(--ink-3)" id="clearTip"></span>
+    </div>
+    <pre id="exportBox" class="hide" style="margin-top:14px;padding:12px 14px;border:1px solid var(--line);
+      border-radius:9px;background:var(--surface-2);font-size:11.5px;line-height:1.7;max-height:260px;overflow:auto"></pre>
+  </div>
+
+  <div class="cite">
+    <b>说明</b>
+    题目由本课程根据论文原文与各页讲解编写，正确项与解析均可在对应页面核对。
+    统计口径：一题只记最后一次作答；点「重做本题」会清掉该题的旧记录并重新计入。
+  </div>
+
+  <div id="termIndex"></div>
+</main>
+<script src="assets/course.js"></script>
+<script>
+(function(){
+  function whenReady(fn){
+    if(window.QuizStore && window.COURSE){ fn(); }
+    else setTimeout(function(){ whenReady(fn); },120);
+  }
+  whenReady(function(){
+    var PAGE_META={};
+    (window.COURSE||[]).forEach(function(g){
+      g.items.forEach(function(it){ PAGE_META[it.id]={f:it.f,n:it.n,t:it.t}; });
+    });
+
+    function el(id){ return document.getElementById(id); }
+    function pct(a,b){ return b?Math.round(a/b*100):0; }
+
+    function render(){
+      var s=QuizStore.stats();
+      var donePages=[];
+      try{ donePages=JSON.parse(localStorage.getItem('tfc-done')||'[]'); }catch(e){}
+
+      el('st-answered').innerHTML=s.answered+'<small>/ '+s.total+'</small>';
+      el('st-cover').textContent='覆盖率 '+s.cover+'%';
+      el('st-rate').textContent=s.answered?s.rate+'%':'—';
+      el('st-correct').textContent='答对 '+s.correct+' 题';
+      el('st-wrong').textContent=s.wrong;
+
+      var contentPages=(window.COURSE||[]).reduce(function(a,g){
+        return a.concat(g.items.filter(function(it){return it.id!=='index'&&it.id!=='progress';}));
+      },[]);
+      var doneCount=contentPages.filter(function(it){return donePages.indexOf(it.id)>=0;}).length;
+      el('st-done').innerHTML=doneCount+'<small>/ '+contentPages.length+' 页</small>';
+
+      var note=el('masteryText');
+      var has=el('masteryNote');
+      if(!s.answered){
+        has.classList.remove('ok'); note.innerHTML='还没有作答记录。任意一页的「自测」里答一题，这里就会开始统计。';
+      }else if(s.rate>=85){
+        has.classList.remove('warm'); has.classList.add('ok');
+        note.innerHTML='<b>整体掌握良好：</b>正确率 '+s.rate+'%，共答 '+s.answered+' 题。建议把错题本过一遍，再挑 2–3 个未作答的页面补齐覆盖。';
+      }else if(s.rate>=60){
+        has.classList.remove('ok'); has.classList.add('warm');
+        note.innerHTML='<b>基本掌握：</b>正确率 '+s.rate+'%，还有 '+s.wrong+' 道错题。先把「需要回头看的页」里标红的几节重读一遍。';
+      }else{
+        has.classList.remove('ok'); has.classList.add('warm');
+        note.innerHTML='<b>还有明显盲区：</b>正确率 '+s.rate+'%。建议不要继续刷题，回到第 08 页（缩放点积注意力）和第 14 页（为什么用自注意力）重读。';
+      }
+
+      var tb=el('pageTable').querySelector('tbody');
+      tb.innerHTML=s.pages.map(function(p){
+        var state=p.answered?0:1;
+        var cls=p.rate>=80?'ok':(p.rate>=60?'mid':'bad');
+        var tag=p.answered?('<span class="tagx '+cls+'">'+(p.rate>=80?'掌握':(p.rate>=60?'需巩固':'薄弱'))+'</span>'):'<span class="tagx">未作答</span>';
+        var kind=p.rate>=80?'':(p.rate<60?' bad':' warn');
+        var bar='<div class="ratebar'+kind+'"><i style="width:'+(p.answered?p.rate:0)+'%"></i></div>';
+        return '<tr><td><a href="'+p.f+'">'+p.n+'</a></td>'+
+          '<td><a href="'+p.f+'">'+p.t+'</a></td>'+
+          '<td class="num">'+p.answered+' / '+p.total+'</td>'+
+          '<td><div style="display:flex;align-items:center;gap:8px">'+bar+
+            '<span style="font-size:10.5px;color:var(--ink-3);font-family:var(--mono);min-width:32px">'+(p.answered?p.rate+'%':'—')+'</span></div></td>'+
+          '<td>'+tag+'</td></tr>';
+      }).join('');
+
+      var weak=s.pages.filter(function(p){ return p.answered>=2 && p.rate<70; })
+        .sort(function(a,b){ return a.rate-b.rate; });
+      var wb=el('weakBox');
+      if(!weak.length){
+        wb.innerHTML='<div class="empty-box">暂无薄弱页。答过几题后，这里会列出正确率偏低的页面。</div>';
+      }else{
+        wb.innerHTML=weak.map(function(p){
+          return '<div class="wrong-card" style="border-left:2.5px solid #C4482F">'+
+            '<div class="wq">第 '+p.n+' 页 · '+p.t+'</div>'+
+            '<div class="wa">已答 '+p.answered+' 题，正确 '+p.correct+' 题（'+p.rate+'%）。'+
+            '建议回到本页，重点看标红小节与「易错清单」。</div>'+
+            '<div class="wf"><a href="'+p.f+'">打开这一页 →</a></div></div>';
+        }).join('');
+      }
+
+      var items=Object.keys(QuizStore.items()).map(function(k){ return QuizStore.items()[k]; })
+        .filter(function(r){ return !r.ok; })
+        .sort(function(a,b){ return (b.ts||0)-(a.ts||0); });
+      var wl=el('wrongList');
+      if(!items.length){
+        wl.innerHTML='<div class="empty-box">还没有错题。</div>';
+      }else{
+        wl.innerHTML=items.map(function(r){
+          var m=PAGE_META[r.p]||{f:'index.html',n:'?',t:'未知页'};
+          var mine=r.o&&r.o[r.pick]!=null?r.o[r.pick]:'（未选）';
+          var right=r.o&&r.o[r.k]!=null?r.o[r.k]:'';
+          return '<div class="wrong-card">'+
+            '<div class="wq">'+escapeHtml(r.q)+'</div>'+
+            '<div class="wa">你的答案：<b class="no">'+escapeHtml(mine)+'</b></div>'+
+            '<div class="wa">正确答案：<b class="ok">'+escapeHtml(right)+'</b></div>'+
+            (r.e?'<div class="we">'+escapeHtml(r.e)+'</div>':'')+
+            '<div class="wf">出自 <a href="'+m.f+'">第 '+m.n+' 页 · '+m.t+'</a></div></div>';
+        }).join('');
+      }
+    }
+
+    function escapeHtml(s){
+      return String(s==null?'':s).replace(/[&<>"']/g,function(c){
+        return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+      });
+    }
+
+    el('clearBtn').onclick=function(){
+      if(!confirm('确定清空全部自测记录？此操作不可撤销。')) return;
+      QuizStore.clear();
+      el('clearTip').textContent='已清空';
+      render();
+      setTimeout(function(){ el('clearTip').textContent=''; },2000);
+    };
+
+    el('exportBtn').onclick=function(){
+      var s=QuizStore.stats();
+      var lines=['Transformer 精读 · 自测记录导出','已答 '+s.answered+'/'+s.total+'，正确率 '+s.rate+'%',''];
+      s.pages.forEach(function(p){
+        if(p.answered) lines.push('第 '+p.n+' 页 '+p.t+'：'+p.answered+' 题，正确 '+p.correct+'（'+p.rate+'%）');
+      });
+      lines.push('','—— 错题 ——');
+      var items=Object.keys(QuizStore.items()).map(function(k){return QuizStore.items()[k];}).filter(function(r){return !r.ok;});
+      items.forEach(function(r){
+        var m=PAGE_META[r.p]||{n:'?'};
+        lines.push('（第 '+m.n+' 页）'+r.q);
+        lines.push('  我的答案：'+(r.o&&r.o[r.pick]||'未选')+'｜正确：'+(r.o&&r.o[r.k]||''));
+      });
+      var box=el('exportBox');
+      box.textContent=lines.join('\n');
+      box.classList.remove('hide');
+    };
+
+    render();
+  });
+})();
+</script>
+</body>
+</html>

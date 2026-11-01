@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page="usage">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>三种注意力用法与掩码（§3.2.3） · Transformer 精读</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<main class="doc" id="doc">
+
+  <header class="lesson-head">
+    <div class="kicker"><span class="sec-no">10</span><span>正文</span><span>·</span><span>§3.2.3</span></div>
+    <h1>三种用法与掩码</h1>
+    <p class="lede">同一个注意力函数，在模型里被用了三次，每次的 Q、K、V 来自不同地方。
+      这一节只有三段，却是最容易混淆的地方——尤其是“掩码”。</p>
+    <div class="meta-row">
+      <span class="pill acc">前置：第 08、09 页</span>
+      <span class="pill">对应：§3.2.3</span>
+      <span class="pill">约 <b>20</b> 分钟</span>
+    </div>
+  </header>
+
+  <div class="whybox">
+    <div class="whybox-h">为什么学这一页</div>
+    <div class="whybox-g">
+      <div class="wide"><b>论文位置</b><span>§3.2.3</span></div>
+      <div><b>不学卡在哪</b><span>三种注意力（编码器自注意力、掩码自注意力、交叉注意力）分不清，也不知道掩码怎么加。</span></div>
+      <div><b>它解决什么</b><span>这三处用法就是整个架构的接线方式，搞混了就看不懂数据在编码器和解码器之间怎么流。</span></div>
+    </div>
+  </div>
+
+  <h2><span class="n">1</span>同一函数，三种接线方式</h2>
+  <div class="sec">
+    <p>注意力函数的输入永远是三样东西：Q、K、V。区别只在于<b>这三样从哪来</b>。论文列了三种：</p>
+
+    <div class="tw">
+      <table class="tb">
+        <thead><tr><th>用法</th><th>Q 来自</th><th>K、V 来自</th><th>能看多远</th><th>解决什么</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><b>① 编码器自注意力</b></td>
+            <td>上一层输出</td><td>上一层输出</td>
+            <td>整句，无限制</td>
+            <td>让原文的词互相理解</td>
+          </tr>
+          <tr>
+            <td><b>② 解码器掩码自注意力</b></td>
+            <td>上一层输出</td><td>上一层输出</td>
+            <td>只能看 ≤ 当前位置</td>
+            <td>保持自回归，不许看未来</td>
+          </tr>
+          <tr>
+            <td><b>③ 编码器-解码器注意力</b><br><span style="font-size:12px;color:var(--ink-3)">也叫交叉注意力</span></td>
+            <td>解码器上一层</td><td><b>编码器最终输出 z</b></td>
+            <td>原文全部位置</td>
+            <td>让译文对齐原文</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="def">
+      <div class="def-h"><b>交叉注意力</b><i>encoder-decoder attention</i><span class="loc">§3.2.3 第 1 条</span></div>
+      <p><b>是什么：</b>Q 来自解码器，K 和 V 来自编码器输出的注意力。它是整个模型里<b>唯一</b>连接左右两半的通道。</p>
+      <p><b>直观看：</b>生成英文 “animal” 时，解码器拿自己的状态去问“原文里哪个词跟我有关”，
+        然后在“这只”“动物”上拿到高权重，把它们的语义取过来。</p>
+      <p><b>为什么 K 和 V 同源：</b>因为它们都描述“原文有什么”。Q 描述“我现在需要什么”，来自另一侧。</p>
+      <div class="x">易错：交叉注意力里<b>没有掩码</b>（编码器输出没有“未来”的概念）。有掩码的只有解码器自己的自注意力。</div>
+    </div>
+  </div>
+
+  <h2><span class="n">2</span>掩码：不许偷看未来</h2>
+  <div class="sec">
+    <p>原文的说法是：“We need to prevent leftward information flow in the decoder to preserve the auto-regressive property.
+      We implement this inside of scaled dot-product attention by masking out (setting to −∞) all values in the input of the
+      softmax which correspond to illegal connections.”</p>
+    <p>拆成三句：<b>目标</b>是保住自回归性质；<b>手段</b>是把非法连接的分数设成 −∞；<b>位置</b>是在 softmax 的输入上。</p>
+
+    <div class="def">
+      <div class="def-h"><b>掩码</b><i>masking</i><span class="loc">§3.2.3；图 2</span></div>
+      <p><b>是什么：</b>一张与分数矩阵同形状的“禁止表”。被禁止的位置在 softmax 之前被替换成 −∞。</p>
+      <p><b>为什么是 −∞ 而不是 0：</b>因为 softmax 会取指数，e<sup>−∞</sup>=0，权重自然变成 0；
+        如果设成 0，e⁰=1，反而会分到不小的权重。</p>
+      <p><b>效果：</b>softmax 之后，这些位置的权重精确为 0，且整行仍然和为 1（剩下的位置重新分配）。</p>
+      <div class="x">易错：掩码必须在 softmax <b>之前</b>。放到之后只能“手动清零”，会破坏归一化（行和不再为 1），
+        而且梯度反传时会出问题。</div>
+    </div>
+
+    <div class="op">
+      <div class="op-h"><span class="i">1</span>构造因果掩码<span class="tg">4 步</span></div>
+      <div class="op-b">
+        <dl class="op-f"><dt>输入</dt><dd>序列长度 n</dd></dl>
+        <dl class="op-f"><dt>条件</dt><dd>只在解码器的自注意力里用；编码器和交叉注意力不加</dd></dl>
+        <dl class="op-f"><dt>步骤 1</dt><dd>建一个 n×n 的矩阵，元素 (i, j) 表示“位置 i 能否看位置 j”</dd></dl>
+        <dl class="op-f"><dt>步骤 2</dt><dd>规则：<code>j ≤ i</code> 允许，<code>j &gt; i</code> 禁止（行号 = 当前词，列号 = 被看的词）</dd></dl>
+        <dl class="op-f"><dt>步骤 3</dt><dd>允许处填 0，禁止处填 −∞（实现上常写成 <code>scores + mask</code>，mask 为 0 或 −1e9）</dd></dl>
+        <dl class="op-f"><dt>步骤 4</dt><dd>把掩码加到缩放后的分数上，再 softmax</dd></dl>
+        <dl class="op-f"><dt>结果</dt><dd>一个上三角被“挖空”的权重矩阵：每行只有前 i 个位置有权重</dd></dl>
+        <dl class="op-f err"><dt>易错</dt><dd>① 方向搞反（把下三角挖掉，等于只能看未来）；
+          ② 用了 −1e9 之外的极小值导致 e<sup>x</sup> 下溢成 0 后再除零；③ 忘了对角线要保留（自己可以看自己）。</dd></dl>
+      </div>
+    </div>
+
+    <div class="demo" data-w="mask"></div>
+
+    <h3>为什么必须这样做</h3>
+    <p>训练时为了并行，整句译文是一次性喂进解码器的。如果不加掩码，预测第 3 个词时模型能直接看到第 4、5 个词——
+      它只要把答案抄过来，损失立刻降到接近 0，什么也学不到。而推理时没有“未来”可抄，模型就崩了。</p>
+    <p>换句话说：<b>掩码不是在限制模型，而是在让训练时的情形与推理时一致。</b></p>
+  </div>
+
+  <h2><span class="n">3</span>另一种掩码：填充掩码</h2>
+  <div class="sec">
+    <p>论文正文没有专门讲它，但任何实现都必须处理——这就是 <code>padding mask</code>。</p>
+    <p>一个批次里句子长短不一，短的要在末尾补 <code>&lt;pad&gt;</code> 凑齐长度。这些占位符没有任何语义，
+      如果让它们参与注意力，会污染真实位置。做法与因果掩码类似：把所有 pad 所在列设为 −∞。</p>
+    <div class="tw">
+      <table class="tb">
+        <thead><tr><th></th><th>因果掩码（causal）</th><th>填充掩码（padding）</th></tr></thead>
+        <tbody>
+          <tr><td>作用对象</td><td>解码器自注意力</td><td>所有注意力（编码器、解码器、交叉）</td></tr>
+          <tr><td>屏蔽什么</td><td>未来位置（j &gt; i）</td><td>pad 占位符</td></tr>
+          <tr><td>形状</td><td>n×n 上三角</td><td>按 batch 里的实际长度，逐样本不同</td></tr>
+          <tr><td>论文是否明说</td><td>是（§3.2.3）</td><td>否（实现细节）</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note warn">
+      <p><b>一个真实的坑：</b>如果一个位置<b>整行都被掩掉</b>（比如整句都是 pad），softmax 会出现 0/0 = NaN。
+        工程实现里要给这种行加保护（例如把对角线强制设为可见）。论文没有讨论，但写代码一定会遇到。</p>
+    </div>
+  </div>
+
+  <h2><span class="n">4</span>三种用法串起来看</h2>
+  <div class="sec">
+    <p>把一层的解码器拆开，数据是这样流动的：</p>
+    <div class="flow" style="margin-top:14px">
+      <div class="fn"><b>已生成词</b>嵌入+PE</div>
+      <div class="fa">→</div>
+      <div class="fn on"><b>掩码自注意力</b>看自己</div>
+      <div class="fa">→</div>
+      <div class="fn on"><b>交叉注意力</b>看原文</div>
+      <div class="fa">→</div>
+      <div class="fn"><b>前馈网络</b>逐位置</div>
+      <div class="fa">→</div>
+      <div class="fn"><b>下一层</b></div>
+    </div>
+    <p style="margin-top:12px">注意两件事：① 第一个注意力有掩码，第二个没有；② 第二个注意力的 K/V 来自编码器，
+      而不是上一层的输出——这是整张架构图里唯一一条跨左右两半的连线。</p>
+  </div>
+
+  <div class="summary">
+    <h3>本页要点</h3>
+    <ol>
+      <li>三种用法只差 Q/K/V 的来源：自注意力（同源）、交叉注意力（Q 来自解码器，K/V 来自编码器）。</li>
+      <li>只有解码器的自注意力需要因果掩码；交叉注意力不需要。</li>
+      <li>掩码的做法是把非法位置的分数设为 −∞，且必须在 softmax 之前。</li>
+      <li>掩码的目的是让训练时的并行与推理时的逐步生成保持一致，防止抄答案。</li>
+      <li>工程上还有填充掩码，处理批次内的占位符；整行被掩时要防止 NaN。</li>
+    </ol>
+  </div>
+
+  <h2><span class="n">5</span>自测</h2>
+  <div class="quiz">
+    <div class="qz">
+      <div class="q"><i>Q1</i>掩码值为什么设成 −∞ 而不是 0？</div>
+      <div class="opts">
+        <button class="opt" data-ok="1"><i>A</i><span>因为 softmax 取指数，e<sup>−∞</sup>=0；设成 0 反而 e⁰=1 会分到权重</span></button>
+        <button class="opt"><i>B</i><span>因为 −∞ 计算更快</span></button>
+        <button class="opt"><i>C</i><span>因为 0 会破坏矩阵形状</span></button>
+      </div>
+      <div class="ex">softmax 是指数归一化。要让权重恰好为 0，输入必须是 −∞（实现中用 −1e9 近似）。</div>
+    </div>
+    <div class="qz">
+      <div class="q"><i>Q2</i>下面哪一种注意力<b>不需要</b>因果掩码？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>解码器的自注意力</span></button>
+        <button class="opt" data-ok="1"><i>B</i><span>编码器-解码器交叉注意力</span></button>
+        <button class="opt"><i>C</i><span>以上都需要</span></button>
+      </div>
+      <div class="ex">交叉注意力看的是完整的原文，没有“未来”的概念，所以不需要因果掩码（但可能需要填充掩码）。</div>
+    </div>
+    <div class="qz">
+      <div class="q"><i>Q3</i>如果训练时忘了加因果掩码，会发生什么？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>训练变慢，但效果不变</span></button>
+        <button class="opt" data-ok="1"><i>B</i><span>训练损失很低，但推理时完全不会生成</span></button>
+        <button class="opt"><i>C</i><span>模型无法收敛</span></button>
+      </div>
+      <div class="ex">模型会学会“抄下一个词”，训练损失接近 0。但推理时没有未来可抄，输出就崩了。这是最典型的“训练-推理不一致”事故。</div>
+    </div>
+  </div>
+
+  <div class="cite">
+    <b>原文出处</b>
+    §3.2.3 Applications of Attention in our Model（三条用法，逐条对应编码器自注意力、解码器掩码自注意力、交叉注意力）；
+    图 2 中的 Mask 标注；§3.1 关于输出右移一位的说明。
+  </div>
+
+  <div id="termIndex"></div>
+</main>
+<script src="assets/course.js"></script>
+</body>
+</html>

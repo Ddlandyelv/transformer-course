@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page="intro">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>摘要与引言（§Abstract·§1） · Transformer 精读</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<main class="doc" id="doc">
+
+  <header class="lesson-head">
+    <div class="kicker"><span class="sec-no">05</span><span>正文</span><span>·</span><span>§ABSTRACT · §1</span></div>
+    <h1>摘要与引言：论文到底主张了什么</h1>
+    <p class="lede">学术论文的摘要是“结论先行”的。这 200 个词里藏着全部卖点，也藏着作者想让审稿人记住的三个数字。</p>
+    <div class="meta-row">
+      <span class="pill acc">前置：第 03–04 页</span>
+      <span class="pill">对应：Abstract、§1</span>
+      <span class="pill">约 <b>18</b> 分钟</span>
+    </div>
+  </header>
+
+  <div class="whybox">
+    <div class="whybox-h">为什么学这一页</div>
+    <div class="whybox-g">
+      <div class="wide"><b>论文位置</b><span>§Abstract、§1</span></div>
+      <div><b>不学卡在哪</b><span>读不懂开篇那两句“主流序列转换模型基于复杂的循环或卷积网络”——不知道它在批评谁。</span></div>
+      <div><b>它解决什么</b><span>这一节是论文的靶子：先立起“RNN 不能并行”这个问题，后面才有解法。</span></div>
+    </div>
+  </div>
+
+  <h2><span class="n">1</span>先看论文的“身份证”</h2>
+  <div class="tw">
+    <table class="tb">
+      <thead><tr><th>项目</th><th>内容</th></tr></thead>
+      <tbody>
+        <tr><td>标题</td><td><b>Attention Is All You Need</b>（注意力就是你所需要的一切）</td></tr>
+        <tr><td>作者</td><td>Vaswani, Shazeer, Parmar, Uszkoreit, Jones, Gomez, Kaiser, Polosukhin（8 人，标注“同等贡献，排名随机”）</td></tr>
+        <tr><td>机构</td><td>Google Brain、Google Research、多伦多大学</td></tr>
+        <tr><td>发表</td><td>NeurIPS (NIPS) 2017，Long Beach</td></tr>
+        <tr><td>arXiv</td><td>1706.03762（v7，2023-08-02 最后修订）</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>“排名随机”这个脚注值得注意：它说明这是一次典型的工业界大规模协作，
+    八个人分别负责架构设计、训练调参、可视化和工程实现。脚注里还写明，是 Jakob Uszkoreit 最早提出“用自注意力替换 RNN”。</p>
+
+  <h2><span class="n">2</span>摘要逐句拆</h2>
+  <div class="sec">
+    <p>摘要一共六句，逻辑非常紧凑。下面按原文顺序拆开，每句给出中文和它的真实作用。</p>
+
+    <div class="op">
+      <div class="op-h"><span class="i">1</span>“The dominant sequence transduction models are based on complex recurrent or convolutional neural networks that include an encoder and a decoder.”</div>
+      <div class="op-b">
+        <dl class="op-f"><dt>中文</dt><dd>主流的序列转换模型基于复杂的循环或卷积神经网络，包含编码器和解码器。</dd></dl>
+        <dl class="op-f"><dt>作用</dt><dd>交代战场：<b>当时的 SOTA 就是 RNN/CNN + 编码器-解码器</b>。这半句同时暗示了论文要挑战的对象。</dd></dl>
+        <dl class="op-f err"><dt>别漏掉</dt><dd>“sequence transduction”= 序列转换，指输入输出都是序列的任务（翻译、摘要）。不是所有 NLP 任务都算。</dd></dl>
+      </div>
+    </div>
+
+    <div class="op">
+      <div class="op-h"><span class="i">2</span>“The best performing models also connect the encoder and decoder through an attention mechanism.”</div>
+      <div class="op-b">
+        <dl class="op-f"><dt>中文</dt><dd>表现最好的模型还会用注意力机制连接编码器和解码器。</dd></dl>
+        <dl class="op-f"><dt>作用</dt><dd>关键铺垫：<b>注意力不是这篇论文发明的</b>，它早就作为配件存在了。论文的新意在于“只用它”。</dd></dl>
+        <dl class="op-f err"><dt>常见误解</dt><dd>以为 Transformer 首创了注意力。错。Bahdanau 等人 2015 年就把它用在翻译上了（见第 03 页）。</dd></dl>
+      </div>
+    </div>
+
+    <div class="op">
+      <div class="op-h"><span class="i">3</span>“We propose a new simple network architecture, the Transformer, based solely on attention mechanisms, dispensing with recurrence and convolutions entirely.”</div>
+      <div class="op-b">
+        <dl class="op-f"><dt>中文</dt><dd>我们提出一种新的简单架构 Transformer，<b>完全基于注意力</b>，彻底抛弃循环与卷积。</dd></dl>
+        <dl class="op-f"><dt>作用</dt><dd>这就是全文的主张（thesis）。三个关键词：simple（结构简单）、solely（只用注意力）、entirely（彻底不用 RNN/CNN）。</dd></dl>
+        <dl class="op-f err"><dt>注意</dt><dd>“solely” 是这篇论文最激进的地方。删掉循环意味着放弃天然的顺序信息，必须用位置编码补回来——这是后面第 13 页存在的全部理由。</dd></dl>
+      </div>
+    </div>
+
+    <div class="op">
+      <div class="op-h"><span class="i">4</span>“Experiments on two machine translation tasks show these models to be superior in quality while being more parallelizable and requiring significantly less time to train.”</div>
+      <div class="op-b">
+        <dl class="op-f"><dt>中文</dt><dd>两个翻译任务的实验显示：质量更好、更可并行、训练时间显著更短。</dd></dl>
+        <dl class="op-f"><dt>作用</dt><dd>三个卖点一次说完：<b>质量、并行性、成本</b>。后面 §4 和 §6 各用一章来支撑。</dd></dl>
+      </div>
+    </div>
+
+    <div class="op">
+      <div class="op-h"><span class="i">5</span>“Our model achieves 28.4 BLEU on WMT 2014 English-to-German … improving over the existing best results, including ensembles, by over 2 BLEU.”</div>
+      <div class="op-b">
+        <dl class="op-f"><dt>中文</dt><dd>英德任务 28.4 BLEU，比此前最好结果（包括集成模型）高出 2 个点以上。</dd></dl>
+        <dl class="op-f"><dt>作用</dt><dd>给出最硬的数字。<b>“including ensembles”</b> 是重点：单个模型打赢了别人的模型集成。</dd></dl>
+        <dl class="op-f err"><dt>易错</dt><dd>28.4 是 big 模型的成绩，base 是 27.3。别把两个数混用（表 2）。</dd></dl>
+      </div>
+    </div>
+
+    <div class="op">
+      <div class="op-h"><span class="i">6</span>“On WMT 2014 English-to-French … 41.8 after training for 3.5 days on eight GPUs, a small fraction of the training costs of the best models from the literature.”</div>
+      <div class="op-b">
+        <dl class="op-f"><dt>中文</dt><dd>英法任务 41.8 BLEU，训练只用了 8 块 GPU、3.5 天，成本不到此前最好模型的零头。</dd></dl>
+        <dl class="op-f"><dt>作用</dt><dd>成本牌。<b>“a small fraction”</b> 是这篇论文能震动工业界的真正原因：不是好一点点，是便宜一个数量级。</dd></dl>
+        <dl class="op-f err"><dt>易错</dt><dd>3.5 天是 big 模型；base 模型只要 12 小时（§5.2）。摘要只提了贵的那个。</dd></dl>
+      </div>
+    </div>
+  </div>
+
+  <div class="note">
+    <p><b>读完摘要你应该能回答：</b>它跟谁比？（RNN/CNN + 编码器解码器）它改了什么？（删掉循环，只用注意力）
+      证据是什么？（28.4 / 41.8 BLEU，12 小时 / 3.5 天）——如果这三问答不上来，重读一遍摘要。</p>
+  </div>
+
+  <h2><span class="n">3</span>引言的五段结构</h2>
+  <div class="sec">
+    <p>§1 只有五段，但每一段的功能都不一样。看懂结构，就能预判它要说什么。</p>
+
+    <h3>第 1 段：RNN 是主流，但被“顺序”锁死</h3>
+    <p>原文的关键句是：<em>“This inherently sequential nature precludes parallelization within training examples.”</em>
+      （这种内在的顺序性阻碍了训练样本内部的并行化。）</p>
+    <p>作者给了两个具体后果：① 句子越长，内存约束越限制批大小；② 虽然有人用分解技巧、条件计算提升效率，
+      <b>“The fundamental constraint of sequential computation, however, remains.”</b>——根本约束仍在。</p>
+    <div class="def">
+      <div class="def-h"><b>顺序性约束</b><i>sequential computation</i><span class="loc">§1 第 1 段</span></div>
+      <p><b>是什么：</b>第 t 步的计算依赖第 t−1 步的结果，所以不能同时算。</p>
+      <p><b>为什么致命：</b>现代加速器的性能来自“同时算很多个”。一旦必须排队，硬件利用率就掉下来了。</p>
+      <div class="x">易错：不是“RNN 慢”这么简单。单步其实很快，问题是步数随句子长度线性增长，而且无法用批并行掩盖。</div>
+    </div>
+
+    <h3>第 2 段：注意力已经很好用，但它总是配角</h3>
+    <p>原文：注意力机制“allowing modeling of dependencies without regard to their distance”——
+      允许建模任意距离的依赖。但紧接着一句转折：“In all but a few cases, however, such attention mechanisms
+      are used in conjunction with a recurrent network.”（除了极少数情况，注意力都和循环网络一起用。）</p>
+    <p>这句话是在为下一段铺路：<b>既然注意力本身不关心距离，为什么还要拖着 RNN？</b></p>
+
+    <h3>第 3 段：主张与两条证据</h3>
+    <p>提出 Transformer：完全依赖注意力来建立输入输出的全局依赖。然后给出两条证据：更强的并行性、更好的翻译质量。
+      最后补一句训练成本：<b>“as little as twelve hours on eight P100 GPUs”</b>。</p>
+
+    <h3>第 4–5 段：泛化性声明与全文路线图</h3>
+    <p>作者强调模型不只在翻译上有效，还能迁移到英语成分句法分析（§6.3）。最后一段是标准的论文路线图，
+      告诉你 §2 讲背景、§3 讲架构……</p>
+  </div>
+
+  <h2><span class="n">4</span>三个贡献，按重要性排序</h2>
+  <div class="tw">
+    <table class="tb">
+      <thead><tr><th>#</th><th>贡献</th><th>为什么重要</th><th>在哪证明</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td><b>架构层面</b>：第一个完全不用循环/卷积、纯靠自注意力的序列转换模型</td><td>把“串行”这个根本约束去掉了，打开了规模化的大门</td><td>§3 全章</td></tr>
+        <tr><td>2</td><td><b>算法层面</b>：缩放点积注意力 + 多头注意力</td><td>让注意力既快（可用矩阵乘法）又能捕捉多种关系</td><td>§3.2.1、§3.2.2</td></tr>
+        <tr><td>3</td><td><b>实证层面</b>：用极低成本刷新 SOTA</td><td>证明这条路不只是优雅，而且更划算</td><td>§6、表 2</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2><span class="n">5</span>论文“没有说”的三件事</h2>
+  <div class="sec">
+    <p>初学者常把后来的结论安到这篇论文头上。以下三点原文都没有主张：</p>
+    <ul>
+      <li><b>没说它能做通用人工智能。</b>论文只做了翻译和句法分析两个任务，全部是监督学习。</li>
+      <li><b>没说注意力可以解释一切。</b>§4 最后只说注意力分布“可能”带来更好的可解释性，用的是 “could yield”，
+        并在附录给了几张可视化，态度很谨慎。</li>
+      <li><b>没说位置编码非正弦不可。</b>表 3 第 E 行明确写了：换成可学习的位置向量，结果几乎一样（25.7 vs 25.8）。
+        选正弦只是为了能外推到更长序列。</li>
+    </ul>
+    <div class="note warn">
+      <p><b>一个容易被忽略的细节：</b>论文的“简单”是相对的。它去掉了循环，但引入了 6 层堆叠、8 个头、
+        残差、层归一化——工程复杂度并不低。所谓 simple，指的是<b>结构同质、易于堆叠和并行</b>，不是“实现容易”。</p>
+    </div>
+  </div>
+
+  <div class="summary">
+    <h3>本页要点</h3>
+    <ol>
+      <li>摘要六句话：战场（RNN/CNN）→ 铺垫（注意力已是配件）→ 主张（只用注意力）→ 三个卖点 → 两个硬数字。</li>
+      <li>“solely / entirely” 是全文最激进的主张：彻底不要循环和卷积。</li>
+      <li>RNN 的问题是<b>顺序性约束</b>，不是速度本身；这直接限制了并行与批大小。</li>
+      <li>注意力早在 2015 年就被用于翻译，本文的贡献是“只用它”并证明足够。</li>
+      <li>28.4 BLEU 是 big 模型，12 小时是 base 模型的训练时间，别混。</li>
+    </ol>
+  </div>
+
+  <h2><span class="n">6</span>自测</h2>
+  <div class="quiz">
+    <div class="qz">
+      <div class="q"><i>Q1</i>论文说“dispensing with recurrence and convolutions entirely”，这句话删掉的是什么？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>编码器和解码器结构</span></button>
+        <button class="opt" data-ok="1"><i>B</i><span>循环网络与卷积网络这两种基本构件</span></button>
+        <button class="opt"><i>C</i><span>注意力机制</span></button>
+      </div>
+      <div class="ex">编码器-解码器框架被完整保留（§3 第一句就说了）。删掉的是 RNN/CNN 这两类“基本积木”，替换成注意力和前馈网络。</div>
+    </div>
+    <div class="qz">
+      <div class="q"><i>Q2</i>“including ensembles” 这个补充说明了什么？</div>
+      <div class="opts">
+        <button class="opt" data-ok="1"><i>A</i><span>单个 Transformer 超过了此前多个模型集成后的最好成绩</span></button>
+        <button class="opt"><i>B</i><span>Transformer 自己也用了集成</span></button>
+        <button class="opt"><i>C</i><span>集成方法不再有效</span></button>
+      </div>
+      <div class="ex">模型集成通常能稳定涨点，是当时的“最强配置”。论文强调这一点，是在说“我用一个模型打赢了你们一群”。</div>
+    </div>
+    <div class="qz">
+      <div class="q"><i>Q3</i>下面哪一项<b>不是</b>论文摘要中给出的证据？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>英德 28.4 BLEU</span></button>
+        <button class="opt"><i>B</i><span>8 块 GPU 训练 3.5 天</span></button>
+        <button class="opt" data-ok="1"><i>C</i><span>在 ImageNet 上超过 ResNet</span></button>
+      </div>
+      <div class="ex">论文的实验只有机器翻译（WMT 2014）和英语成分句法分析，没有视觉任务。ViT 把 Transformer 用到图像是 2020 年之后的事。</div>
+    </div>
+  </div>
+
+  <div class="cite">
+    <b>原文出处</b>
+    Abstract（全部六句）；§1 Introduction 五段；训练成本见 §5.2；BLEU 与集成对比见 §6.1 与表 2。
+    原文可在 arXiv:1706.03762 获取，建议对照第 1 页阅读。
+  </div>
+
+  <div id="termIndex"></div>
+</main>
+<script src="assets/course.js"></script>
+</body>
+</html>

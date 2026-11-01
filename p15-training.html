@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page="train">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>训练（§5） · Transformer 精读</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<main class="doc" id="doc">
+
+  <header class="lesson-head">
+    <div class="kicker"><span class="sec-no">15</span><span>正文</span><span>·</span><span>§5</span></div>
+    <h1>训练：12 小时是怎么算出来的</h1>
+    <p class="lede">§5 是全篇最“工程”的一节：数据怎么装、卡怎么用、学习率怎么排、怎么防过拟合。
+      所有数字都可以直接复现，也是很多人复现失败的地方。</p>
+    <div class="meta-row">
+      <span class="pill acc">前置：第 02、04 页</span>
+      <span class="pill">对应：§5.1–§5.4</span>
+      <span class="pill">约 <b>22</b> 分钟</span>
+    </div>
+  </header>
+
+  <div class="whybox">
+    <div class="whybox-h">为什么学这一页</div>
+    <div class="whybox-g">
+      <div class="wide"><b>论文位置</b><span>§5.1–§5.4</span></div>
+      <div><b>不学卡在哪</b><span>一堆超参数和调度策略堆在一起，不知道哪个是关键的、哪个可以照抄。</span></div>
+      <div><b>它解决什么</b><span>这部分决定了实验能不能复现，也是理解“训练成本”这笔账的地方。</span></div>
+    </div>
+  </div>
+
+  <h2><span class="n">1</span>§5.1 数据与批处理</h2>
+  <div class="sec">
+    <div class="tw">
+      <table class="tb">
+        <thead><tr><th>任务</th><th>数据</th><th>规模</th><th>分词</th></tr></thead>
+        <tbody>
+          <tr><td>英→德</td><td>WMT 2014 EN-DE</td><td class="num">4.5 M 句对</td><td>BPE，共享词表 ≈ 37000</td></tr>
+          <tr><td>英→法</td><td>WMT 2014 EN-FR</td><td class="num">36 M 句对</td><td>word-piece，32000</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="def">
+      <div class="def-h"><b>按长度分桶</b><i>batching by approximate sequence length</i><span class="loc">§5.1</span></div>
+      <p><b>是什么：</b>把长度相近的句子放进同一个批次，避免“一句 5 个词配一句 200 个词”，大量算力浪费在填充上。</p>
+      <p><b>论文的做法：</b>每个批次包含约 <b>25000 个源词元</b>和 <b>25000 个目标词元</b>。</p>
+      <p><b>为什么按词元数而不是句子数：</b>句子长度差异巨大，按句子数凑批会让不同批的计算量差好几倍，梯度噪声也随之剧烈波动。</p>
+      <div class="x">易错：批大小改变会改变有效学习率。复现时如果显存不够、把批改小，通常要相应调小学习率或增加梯度累积。</div>
+    </div>
+  </div>
+
+  <h2><span class="n">2</span>§5.2 硬件与时间表</h2>
+  <div class="sec">
+    <div class="tw">
+      <table class="tb">
+        <thead><tr><th>模型</th><th>硬件</th><th>每步耗时</th><th>训练步数</th><th>总时长</th></tr></thead>
+        <tbody>
+          <tr><td>base</td><td>8 × NVIDIA P100</td><td class="num">0.4 s</td><td class="num">100,000</td><td class="num"><b>12 小时</b></td></tr>
+          <tr><td>big</td><td>8 × NVIDIA P100</td><td class="num">1.0 s</td><td class="num">300,000</td><td class="num"><b>3.5 天</b></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>验算一下：0.4 秒 × 100000 = 40000 秒 ≈ 11.1 小时，加上中间开销约 12 小时；
+      1.0 秒 × 300000 = 300000 秒 ≈ 3.47 天。数字是自洽的。</p>
+    <div class="note">
+      <p><b>为什么这个数字重要：</b>在 2017 年，训练一个 SOTA 翻译模型通常是几周、几十块卡。
+        “8 块卡 3.5 天”直接把门槛拉到了实验室可及的范围——这是论文影响力的另一半原因。</p>
+    </div>
+  </div>
+
+  <h2><span class="n">3</span>§5.3 优化器与学习率</h2>
+  <div class="sec">
+    <div class="def">
+      <div class="def-h"><b>Adam</b><i>Adam optimizer</i><span class="loc">§5.3</span></div>
+      <p><b>是什么：</b>一种自适应学习率的优化器。它为每个参数单独维护梯度的一阶矩（均值）和二阶矩（方差），
+        用二者之比决定每个参数的实际步长。</p>
+      <p><b>论文的参数：</b>β₁ = 0.9、β₂ = <b>0.98</b>、ε = 10<sup>−9</sup>。</p>
+      <p><b>为什么 β₂ 是 0.98 而不是常见的 0.999：</b>更短的记忆窗口，让二阶矩更快跟上梯度分布的变化。
+        在稀疏、动态的梯度下更稳。这是论文的一个细节改动，复现时容易忽略。</p>
+      <div class="x">易错：直接套用默认 β₂=0.999 也能跑，但收敛曲线会不一样。超参不是玄学，改动都有代价。</div>
+    </div>
+
+    <div class="fm">
+      <span class="v">lrate</span> <span class="op">=</span>
+      <span class="v">d</span><sub>model</sub><sup>−0.5</sup> ·
+      min( <span class="v">step</span><sup>−0.5</sup>, &nbsp;
+      <span class="v">step</span> · <span class="v">warmup</span><sup>−1.5</sup> )
+      <span class="cap">式 (3)。warmup_steps = 4000</span>
+    </div>
+
+    <div class="op">
+      <div class="op-h"><span class="i">1</span>学习率在不同阶段怎么变<span class="tg">3 段</span></div>
+      <div class="op-b">
+        <dl class="op-f"><dt>输入</dt><dd>当前步数 step，d<sub>model</sub>=512，warmup=4000</dd></dl>
+        <dl class="op-f"><dt>条件</dt><dd>每一步更新前重新计算，不是固定值</dd></dl>
+        <dl class="op-f"><dt>阶段 1 热身（step &lt; 4000）</dt><dd>min 取右项：<code>step × 4000<sup>−1.5</sup></code>，学习率<b>线性上升</b></dd></dl>
+        <dl class="op-f"><dt>阶段 2 峰值（step = 4000）</dt><dd>两项相等，学习率 ≈ <b>7.0 × 10<sup>−4</sup></b></dd></dl>
+        <dl class="op-f"><dt>阶段 3 衰减（step &gt; 4000）</dt><dd>min 取左项：<code>step<sup>−0.5</sup></code>，按步数平方根倒数<b>缓慢下降</b></dd></dl>
+        <dl class="op-f"><dt>结果</dt><dd>一条“先陡升、再长尾缓降”的曲线。见下图</dd></dl>
+        <dl class="op-f err"><dt>易错</dt><dd>① 忘了乘 d<sub>model</sub><sup>−0.5</sup>（0.0442），结果学习率大 20 多倍；
+          ② 把 warmup 写成 4000 步但按 epoch 计；③ 换了大模型不改公式——d<sub>model</sub> 变了，整体尺度也跟着变。</dd></dl>
+      </div>
+    </div>
+
+    <div class="demo" data-w="lr"></div>
+
+    <h3>为什么要热身</h3>
+    <p>训练刚开始时参数是随机的，梯度方向混乱且幅度可能很大。如果直接用较大学习率，
+      模型容易被一步带到很差的区域（甚至数值爆炸）。热身让模型先小步走，等方向稳定了再加速。</p>
+    <p>对 Transformer 尤其重要：Post-LN 结构让深层数值更容易失稳，warmup 几乎是必需的。</p>
+  </div>
+
+  <h2><span class="n">4</span>§5.4 三种正则化</h2>
+  <div class="sec">
+    <div class="tw">
+      <table class="tb">
+        <thead><tr><th>手段</th><th>用在哪</th><th>数值</th><th>作用</th></tr></thead>
+        <tbody>
+          <tr><td><b>残差 dropout</b></td><td>每个子层输出加回主干之前</td><td class="num">0.1</td><td>防止子层输出被过度依赖</td></tr>
+          <tr><td><b>嵌入 dropout</b></td><td>词嵌入与位置编码相加之后</td><td class="num">0.1</td><td>防止死记某个词的固定表示</td></tr>
+          <tr><td><b>标签平滑</b></td><td>训练目标的构造</td><td class="num">ε<sub>ls</sub> = 0.1</td><td>防止模型过度自信</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="def">
+      <div class="def-h"><b>标签平滑</b><i>label smoothing</i><span class="loc">§5.4</span></div>
+      <p><b>是什么：</b>不要求模型对正确词输出概率 1，而是把目标改成“正确词 0.9、其余词均分 0.1”。</p>
+      <p><b>论文的原话：</b>“This hurts perplexity, as the model learns to be more unsure, but improves accuracy and BLEU score.”</p>
+      <p><b>为什么有效：</b>语言本身有歧义，正确答案往往不止一个。强迫模型输出 100% 会让它过度自信、
+        把大量概率质量压在单一词上，反而损害泛化。</p>
+      <div class="x">易错：标签平滑会让 <b>PPL 变差</b>（因为模型不再“锐利”），所以看表 3 时不能只盯 PPL。
+        论文专门解释了这一点，避免读者误判。</div>
+    </div>
+
+    <div class="note warn">
+      <p><b>一个容易被忽略的细节：</b>big 模型在英德任务上用 <b>P<sub>drop</sub> = 0.3</b>，
+        但在英法任务上改用 <b>0.1</b>。原文：“The Transformer (big) model trained for English-to-French used
+        dropout rate Pdrop = 0.1, instead of 0.3.”</p>
+      <p>也就是说，dropout 不是“大模型一律 0.3”，而是按任务调的。数据量、语言对、过拟合风险不同，这个值就该不同。</p>
+    </div>
+
+    <h3>检查点平均（在 §6.1 提的，但属于训练流程）</h3>
+    <p>训练结束后，把最后若干个检查点的参数取平均：base 取最后 5 个（每 10 分钟存一次），
+      big 取最后 20 个。相当于免费的模型集成，几乎总能涨一点。</p>
+  </div>
+
+  <div class="summary">
+    <h3>本页要点</h3>
+    <ol>
+      <li>英德 4.5M 句对 / BPE 37000；英法 36M 句对 / word-piece 32000。</li>
+      <li>按长度分桶，每批约 25000 源词元 + 25000 目标词元。</li>
+      <li>8×P100：base 0.4s/步 × 10 万步 = 12 小时；big 1.0s/步 × 30 万步 = 3.5 天。</li>
+      <li>Adam（β₂=0.98，ε=1e-9）+ warmup 4000 的“升-降”学习率。</li>
+      <li>正则三件套：残差 dropout 0.1、嵌入 dropout 0.1、标签平滑 0.1。</li>
+    </ol>
+  </div>
+
+  <h2><span class="n">5</span>自测</h2>
+  <div class="quiz">
+    <div class="qz">
+      <div class="q"><i>Q1</i>学习率公式里 d<sub>model</sub><sup>−0.5</sup> 这一项的作用是？</div>
+      <div class="opts">
+        <button class="opt" data-ok="1"><i>A</i><span>让学习率随模型宽度自动缩放，模型越大基础学习率越小</span></button>
+        <button class="opt"><i>B</i><span>控制 warmup 的长度</span></button>
+        <button class="opt"><i>C</i><span>让学习率在训练后期归零</span></button>
+      </div>
+      <div class="ex">d_model 越大，这一项越小。它把不同规模模型的更新幅度拉到一个可比的尺度上，避免大模型一上来就爆。</div>
+    </div>
+    <div class="qz">
+      <div class="q"><i>Q2</i>warmup 的作用是？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>让损失先上升再下降，帮助跳出局部最优</span></button>
+        <button class="opt" data-ok="1"><i>B</i><span>训练初期用小学习率，等梯度方向稳定后再放大</span></button>
+        <button class="opt"><i>C</i><span>减少显存占用</span></button>
+      </div>
+      <div class="ex">初期参数随机，梯度不可靠。小步走能避免一步跨进坏区域，尤其对 Post-LN 结构重要。</div>
+    </div>
+    <div class="qz">
+      <div class="q"><i>Q3</i>标签平滑会让哪个指标变差? </div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>BLEU</span></button>
+        <button class="opt" data-ok="1"><i>B</i><span>困惑度（PPL）</span></button>
+        <button class="opt"><i>C</i><span>准确率</span></button>
+      </div>
+      <div class="ex">模型被要求“别太自信”，输出分布更平，−log p 变大 → PPL 变差；但泛化更好，BLEU 和准确率反而上升。</div>
+    </div>
+  </div>
+
+  <div class="cite">
+    <b>原文出处</b>
+    §5.1 Training Data and Batching；§5.2 Hardware and Schedule；§5.3 Optimizer（式 3、β₂=0.98、ε=1e-9、warmup 4000）；
+    §5.4 Regularization（residual dropout、label smoothing）；检查点平均见 §6.1。
+  </div>
+
+  <div id="termIndex"></div>
+</main>
+<script src="assets/course.js"></script>
+</body>
+</html>

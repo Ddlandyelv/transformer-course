@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page="start1">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>机器要学会一件事，难在哪 · Transformer 精读</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<main class="doc" id="doc">
+
+  <header class="lesson-head">
+    <div class="kicker"><span class="sec-no">0.1</span><span>第零幕 · 从零开始</span><span>·</span><span>WHY LEARN</span></div>
+    <h1>机器要学会一件事，难在哪</h1>
+    <p class="lede">这一页不出现任何公式，也不出现矩阵。只回答一个问题：
+      为什么人类最后决定<b>不写规则</b>，而是造一台<b>能自己调数字的机器</b>。
+      后面所有的名词——神经网络、参数、训练、Transformer、FFN——都从这个决定里长出来。</p>
+    <div class="meta-row">
+      <span class="pill acc">这是第 1 页，不需要前置</span>
+      <span class="pill">读完接：0.2 一个神经元</span>
+      <span class="pill">约 <b>12</b> 分钟</span>
+    </div>
+  </header>
+
+  <div class="whybox">
+    <div class="whybox-h">为什么学这一页</div>
+    <div class="whybox-g">
+      <div class="wide"><b>论文位置</b><span>§1 引言第一段；§5.1 训练数据规模</span></div>
+      <div><b>不学卡在哪</b><span>读 §1 时不明白“为什么非要换掉 RNN”，只会把 Transformer 当成又一个模型变体，记不住它到底在赌什么。</span></div>
+      <div><b>它解决什么</b><span>让你看清整篇论文押注的前提：用海量数据调数字，比人手写语法规则更有效。</span></div>
+    </div>
+  </div>
+
+  <h2><span class="n">1</span>先把任务摆到桌上</h2>
+  <div class="sec">
+    <p>假设要让机器干一件事：把一句中文翻成英文。</p>
+    <div class="q">我看见一只猫坐在垫子上。<br>→ I saw a cat sitting on the mat.</div>
+    <p>看起来不难。但把这句话拆开，机器要同时处理至少六件事：</p>
+    <table class="tb">
+      <thead><tr><th style="width:24%">要处理的事</th><th>具体难在哪</th></tr></thead>
+      <tbody>
+        <tr><td><b>词对词</b></td><td>「看见」不是 see，是 saw；「垫子」是 mat，不是 cushion。</td></tr>
+        <tr><td><b>语序</b></td><td>中文「坐在垫子上」是动词在前；英文 sitting on the mat 也差不多，但换成「我从北京来」就变成 I come from Beijing，介词位置整个翻过来。</td></tr>
+        <tr><td><b>时态</b></td><td>中文没有形态变化，「看见」两个字就是看见。英文必须决定 saw 还是 see。</td></tr>
+        <tr><td><b>冠词</b></td><td>中文没有冠词。英文要判断 a cat 还是 the cat，a mat 还是 the mat。</td></tr>
+        <tr><td><b>单复数</b></td><td>「一只猫」是单数，「一些猫」是复数，英文动词、代词都要跟着变。</td></tr>
+        <tr><td><b>词形变化</b></td><td>sit 要变成 sitting，不是 siting。</td></tr>
+      </tbody>
+    </table>
+    <p>这六件事，任何一件错了，句子就不地道。而这还是最短的一类句子。</p>
+  </div>
+
+  <h2><span class="n">2</span>老办法：把规则一条条写下来</h2>
+  <div class="sec">
+    <p>1950 到 1980 年代，主流的做法是<b>手写规则</b>：语言学家把语法整理成条文，工程师把条文翻译成程序。</p>
+    <p>比如可以写这样三条：</p>
+    <ul>
+      <li>规则 A：中文「一只 + 名词」→ 英文「a + 名词」。</li>
+      <li>规则 B：中文「在 + 名词 + 上」→ 英文「on the + 名词」。</li>
+      <li>规则 C：句子里有「看见 / 听到 / 感到」这类感知动词，且是叙述过去的事 → 用过去时。</li>
+    </ul>
+    <p>三条规则，能翻对「一只猫」和「坐在垫子上」。接着换几个词试试：</p>
+    <table class="tb">
+      <thead><tr><th style="width:34%">按规则 A 推出来的</th><th>实际应该是</th><th style="width:26%">哪里崩了</th></tr></thead>
+      <tbody>
+        <tr><td>a eye</td><td><b>an</b> eye</td><td>要看<b>发音</b>，不是看字母。eye 以元音开头。</td></tr>
+        <tr><td>a hour</td><td><b>an</b> hour</td><td>hour 的 h 不发音，实际以元音开头。规则 A 完全没料到。</td></tr>
+        <tr><td>a university</td><td>a university</td><td>u 是元音字母，但读 /juː/ 是辅音开头。规则 A 反而会把它改错。</td></tr>
+        <tr><td>a glove</td><td>a <b>pair of</b> gloves</td><td>「一只手套」在英文里不按「一只」算，要论「一副」。</td></tr>
+      </tbody>
+    </table>
+    <p>问题不在于规则 A 写错了，而在于<b>每补一个例外，就会生出新的例外</b>。改到最后，规则之间开始互相打架：
+      一条说要用 an，另一条说这个音前面要用 a，程序不知道该听谁的。</p>
+    <div class="note">
+      <p><b>一条总结：</b>语言不是一套规则的集合，而是<b>大量习惯的集合</b>。
+        凡是靠"如果……就……"堆起来的系统，遇到没写过的句子必然失灵；而人类每天都在说从没说过的新句子。</p>
+    </div>
+  </div>
+
+  <h2><span class="n">3</span>换一个思路：不写规则，让它自己调数字</h2>
+  <div class="sec">
+    <p>1950 年代末，有人提出了完全相反的做法。不规定「一只 → a」，而是造一台机器，然后做四件事：</p>
+    <div class="op">
+      <div class="op-h"><span class="i">①</span>造一台有很多旋钮的机器<span class="tg">这就是神经网络</span></div>
+      <div class="op-b">
+        <dl class="op-f"><dt>做什么</dt><dd>造一个固定的计算流程，流程里埋着几百万、几十亿个可以拧的旋钮。旋钮怎么拧，决定了机器看到一句话会输出什么。</dd></dl>
+        <dl class="op-f"><dt>旋钮叫什么</dt><dd><b>参数</b>（parameter）。一个旋钮就是一个数字，可以取任意小数。</dd></dl>
+        <dl class="op-f"><dt>关键点</dt><dd>机器的<b>结构</b>是人设计的，<b>数字</b>不是人填的。人只负责搭框子。</dd></dl>
+      </div>
+    </div>
+    <div class="op">
+      <div class="op-h"><span class="i">②</span>喂给它大量例子<span class="tg">这一步叫训练</span></div>
+      <div class="op-b">
+        <dl class="op-f"><dt>数据长什么样</dt><dd>几十万对句子：左边中文，右边人工译好的英文。论文用的 WMT 2014 英德数据集有约 <b>450 万</b>对句子（§5.1）。</dd></dl>
+        <dl class="op-f"><dt>它做什么</dt><dd>拿一句中文进去，用当前的旋钮设定算出一个英文句子。</dd></dl>
+      </div>
+    </div>
+    <div class="op">
+      <div class="op-h"><span class="i">③</span>翻错了就微调旋钮<span class="tg">这一步叫反向传播</span></div>
+      <div class="op-b">
+        <dl class="op-f"><dt>先量错多少</dt><dd>把它的输出和标准答案比，算出一个数，代表"错得有多厉害"。这个数叫<b>损失</b>（loss）。</dd></dl>
+        <dl class="op-f"><dt>再定方向</dt><dd>算出每一个旋钮分别朝哪个方向拧、拧多少，能让损失变小。这个方向叫<b>梯度</b>（gradient）。</dd></dl>
+        <dl class="op-f"><dt>最后拧一点</dt><dd>每个旋钮朝那个方向挪一小步。挪多大由<b>学习率</b>（learning rate）决定。</dd></dl>
+      </div>
+    </div>
+    <div class="op">
+      <div class="op-h"><span class="i">④</span>重复几百万次</div>
+      <div class="op-b">
+        <dl class="op-f"><dt>结果</dt><dd>旋钮被调到某个位置，使得它在见过和没见过的句子上都译得不错。</dd></dl>
+        <dl class="op-f"><dt>关键</dt><dd>它从来没有"记住规则 A"，而是形成了某种模糊的、大范围的对应关系——所以新句子也能应付。</dd></dl>
+      </div>
+    </div>
+    <p>这四步合起来，就是<b>机器学习</b>。它和"写规则"的根本区别在于：<b>规则是人在写，数字在写。</b></p>
+  </div>
+
+  <h2><span class="n">3.5</span>把一轮完整走完：只有一个旋钮的机器</h2>
+  <div class="sec">
+    <p>上面四步说得太抽象。用一个只有<b>一个旋钮</b>的机器，把一整轮走完，每个数字都算出来。</p>
+    <p><b>任务：</b>判断一句话是中文还是英文。</p>
+    <p><b>机器：</b>先数出句子里汉字占的比例，记作 x；然后乘上旋钮 w，得到分数 s = w × x。
+      s 大于 0.5 就判"中文"，否则判"英文"。</p>
+    <p><b>现在 w = 0.5</b>（随便定的初始值，真实模型里也是随机初始化）。</p>
+
+    <div class="op">
+      <div class="op-h"><span class="i">①</span>前向：拿一个例子算一遍</div>
+      <div class="op-b">
+        <dl class="op-f"><dt>输入</dt><dd>「我看见一只猫」——7 个字全是汉字，x = <b>1.0</b></dd></dl>
+        <dl class="op-f"><dt>计算</dt><dd>s = 0.5 × 1.0 = <b>0.5</b></dd></dl>
+        <dl class="op-f"><dt>判断</dt><dd>s 不大于 0.5，判成"<b>英文</b>"——<b>错了</b>，正确答案是中文。</dd></dl>
+      </div>
+    </div>
+
+    <div class="op">
+      <div class="op-h"><span class="i">②</span>损失：把"错了"变成一个数</div>
+      <div class="op-b">
+        <dl class="op-f"><dt>怎么量</dt><dd>看模型给<b>正确答案</b>打了多少分。这一步真实模型用的是 softmax 之后的概率，这里简化成"分数直接当把握"。</dd></dl>
+        <dl class="op-f"><dt>算出来</dt><dd>模型给"中文"的把握只有 <b>0.5</b>，损失 = −log(0.5) ≈ <b>0.69</b></dd></dl>
+        <dl class="op-f"><dt>感受一下</dt><dd>如果把握是 0.9，损失只有 0.11；如果把握是 0.1，损失是 2.30。<b>越没把握，罚得越重</b>，而且是指数级加重。这就是交叉熵的作用。</dd></dl>
+      </div>
+    </div>
+
+    <div class="op">
+      <div class="op-h"><span class="i">③</span>梯度：算出该往哪拧</div>
+      <div class="op-b">
+        <dl class="op-f"><dt>问的问题</dt><dd>"如果我把 w 调大一点点，损失会变大还是变小？变小多少？"</dd></dl>
+        <dl class="op-f"><dt>答案</dt><dd>w 变大 → s 变大 → 给中文的把握变大 → 损失变小。所以<b>w 应该调大</b>。</dd></dl>
+        <dl class="op-f"><dt>怎么算出来的</dt><dd>真实模型用链式法则一层层往回推，叫<b>反向传播</b>。这里只有一个旋钮，一眼能看出来；几千层的时候就只能靠算法推。</dd></dl>
+      </div>
+    </div>
+
+    <div class="op">
+      <div class="op-h"><span class="i">④</span>更新：拧一小步</div>
+      <div class="op-b">
+        <dl class="op-f"><dt>公式</dt><dd>新 w = 旧 w + 学习率 × 梯度方向。设学习率 0.2。</dd></dl>
+        <dl class="op-f"><dt>算出来</dt><dd>w：0.5 → <b>0.7</b></dd></dl>
+        <dl class="op-f"><dt>下一轮</dt><dd>再遇到「我看见一只猫」，s = 0.7 × 1.0 = 0.7 &gt; 0.5，判成中文，<b>对了</b>。</dd></dl>
+      </div>
+    </div>
+
+    <p>还没完。紧接着喂一句纯英文 <code>I saw a cat</code>：汉字比例 x = 0，s = w × 0 = 0，永远判成英文，无论 w 多大都不出错。
+      ——这个例子说明了一件事：<b>旋钮不是万能的，它只能学到输入里"有信号"的部分</b>。如果特征本身不携带信息（这句英文的 x 恒为 0），再大的 w 也没用。</p>
+    <div class="note">
+      <p><b>所以模型设计的第一要务是"让输入里带够信息"。</b>Transformer 之所以要那么复杂，
+        很大一部分原因就是：光有词本身不够，还得让每个词知道<b>别的词是什么</b>、<b>自己在第几位</b>。
+        这两件事，分别对应后面的"注意力"和"位置编码"。0.5 页会专门讲。</p>
+    </div>
+  </div>
+
+  <h2><span class="n">4</span>所以"学习"到底在做什么</h2>
+  <div class="sec">
+    <div class="def">
+      <div class="def-h"><b>训练 / 学习</b><i>training / learning</i><span class="loc">§5 全文都在讲这件事</span></div>
+      <p><b>一句话定义：</b>在大量例子上，反复微调几千万个数字，让机器的输出尽可能接近正确答案。</p>
+      <p><b>它不是什么：</b>不是让机器"理解"语言，也不是把语法书塞进它的脑子。它找到的是一组数值关系，这组关系恰好能让输出看起来对。</p>
+      <p><b>为什么这叫"学"：</b>因为调完之后，它对<b>没见过的输入</b>也能给出合理输出。这种"举一反三"的能力，是判断它有没有学到东西的唯一标准。</p>
+      <div class="x">易错：不要把"训练"理解成"把答案存进数据库"。模型存的是<b>旋钮的位置</b>（几十亿个小数），不是句子。所以它答不出原文，但能译出相似的新句子。这也解释了它为什么会"编造"——旋钮给出的是一种概率上像样的输出，不保证事实正确。</div>
+    </div>
+  </div>
+
+  <h2><span class="n">5</span>为什么非得是"神经网络"这个形状</h2>
+  <div class="sec">
+    <p>到这里还有一个没交代的问题：那台"有旋钮的机器"，为什么长成神经网络那样？随便设计一个不行吗？</p>
+    <p>答案是：<b>要表达的关系太复杂，人根本设计不出来。</b></p>
+    <p>试想你要亲手写出一个公式，输入是 10 个中文词的编号，输出是 12 个英文词的概率分布，
+      中间必须自动处理时态、语序、冠词、单复数、习语……这个公式没人写得出来，写出来也没法调。</p>
+    <p>数学家给了一个退路。1989 年被证明的<b>万能近似定理</b>（universal approximation theorem）说：
+      只要一层神经网络足够宽，它就能以任意精度逼近任何连续函数。</p>
+    <div class="def">
+      <div class="def-h"><b>万能近似定理</b><i>universal approximation theorem</i><span class="loc">Cybenko 1989 / Hornik 1991，本文未引用</span></div>
+      <p><b>说了什么：</b>一个带非线性激活的足够宽的神经网络，理论上可以逼近任何连续函数。</p>
+      <p><b>为什么重要：</b>它把问题从"设计一个正确的公式"换成了"挑一个足够通用的形状，让数据来填数字"。后者可做，前者不可做。</p>
+      <p><b>它没说什么：</b>它只保证"存在"，不保证"训练能找到"，也不保证"用有限数据能学到"。所以实际效果仍然要看数据量、结构和训练方法。</p>
+      <div class="x">易错：这条定理常被误读成"神经网络什么都能干"。它是一句关于<b>表达能力</b>的话，不是关于<b>学习能力</b>的话。表达得出来 ≠ 学得出来 ≠ 数据够。</div>
+    </div>
+    <p>这个"通用形状"就是神经网络：一堆简单的乘法加法单元，按层堆起来。层数越多、越宽，能表达的关系越复杂。</p>
+    <p><b>Transformer 就是其中一种具体形状</b>——它在 2017 年被提出，专门用来处理"一句话"这种长度不定、顺序有意义的输入。它凭什么这么设计，是 0.5 页的事。</p>
+  </div>
+
+  <h2><span class="n">5.5</span>这套办法的代价：四条必须提前知道的</h2>
+  <div class="sec">
+    <p>"不写规则、让数据填数字"换来了效果，但也付出了四种代价。后面对模型行为的很多困惑，其实都源于这四条。</p>
+
+    <div class="def">
+      <div class="def-h"><b>代价一：要吃大量数据</b><i>data hungry</i><span class="loc">§5.1 使用的数据集规模</span></div>
+      <p><b>具体到什么程度：</b>论文的英德翻译用了约 <b>450 万</b>个句对，英法用了约 <b>3600 万</b>个句对。
+        小于这个量级，模型学不到稳定规律。</p>
+      <p><b>为什么：</b>因为旋钮太多（6500 万个），例子太少的话，它可以靠"把例子背下来"把训练损失压得很低，却没有真的学到通用关系。</p>
+      <div class="x">易错：数据少不等于不能做。做法是拿别人已经在大数据上训练好的模型，再在少量数据上微调（fine-tune）。这已经是现在的常规操作。</div>
+    </div>
+
+    <div class="def">
+      <div class="def-h"><b>代价二：要吃大量算力</b><i>compute hungry</i><span class="loc">§5.2 硬件与训练时间</span></div>
+      <p><b>具体数：</b>base 模型在 <b>8 块 P100</b> 上训练 <b>10 万步</b>，约 <b>12 小时</b>；big 模型约 <b>3.5 天</b>。</p>
+      <p><b>钱花在哪：</b>主要是矩阵乘法。每一层、每个位置、每个注意力头，都要做几百次上千维的乘法。这是 Transformer 设计里最核心的取舍——<b>用算力换并行度</b>（第 14 页会详细算这笔账）。</p>
+    </div>
+
+    <div class="def">
+      <div class="def-h"><b>代价三：不可解释</b><i>black box</i><span class="loc">§6.1 注意力可视化只是"事后观察"</span></div>
+      <p><b>什么意思：</b>6500 万个旋钮调好之后，没有人能说清"第 1234 万个旋钮负责什么"。你知道它有效，但不知道它为什么有效。</p>
+      <p><b>能做什么：</b>可以把注意力权重画出来，看某个词在看谁（论文附录给了这样的图）。
+        但这是<b>观察</b>，不是<b>解释</b>：看到一个头盯着相邻词，不等于设计时规定了它这么做。</p>
+      <div class="x">易错：把注意力图当"模型在想什么"的证据，是最常见的过度解读。注意力权重只说明"信息按这个比例混合了"，不说明"模型因此做了这个决定"。</div>
+    </div>
+
+    <div class="def">
+      <div class="def-h"><b>代价四：会编造</b><i>hallucination</i><span class="loc">本文未涉及，是这类模型的固有性质</span></div>
+      <p><b>为什么必然发生：</b>它训练的目标是"让下一个词的概率尽量高"，不是"让说的话为真"。这两个目标大部分时候重合，但在它没学过的地方就会分叉——它会给出<b>看起来最像正确答案</b>的东西。</p>
+      <p><b>和论文的关系：</b>2017 年这篇论文没有讨论这个问题，因为当时模型只做翻译，输出受原文约束。
+        后来模型变大、开始自由生成，这个问题才暴露出来。</p>
+      <div class="x">易错：不要因为"它说得很流畅"就认为"它说得对"。流畅度由概率目标保证，正确性没有保证。</div>
+    </div>
+  </div>
+
+  <h2><span class="n">6</span>这一页要留下的三个词</h2>
+  <div class="sec">
+    <div class="summary">
+      <h3>本页要点</h3>
+      <ol>
+        <li><b>写规则走不通</b>：语言是习惯的集合，规则永远补不完，补到最后互相冲突。</li>
+        <li><b>换成的办法</b>：搭一个固定的计算流程，里面埋大量可调的数字（参数），用数据把这些数字调对。</li>
+        <li><b>学习 = 调数字</b>：前向算预测 → 算损失 → 算梯度 → 按学习率挪一小步，重复几百万次。</li>
+        <li><b>为什么用神经网络</b>：要拟合的关系太复杂，人写不出公式；万能近似定理保证了"足够宽的神经网络能逼近任何连续函数"，于是把"设计公式"换成"挑形状 + 让数据填数字"。</li>
+        <li><b>判断学没学会的标准</b>：在<b>没见过</b>的输入上表现如何，而不是在训练集上背得多准。</li>
+      </ol>
+    </div>
+    <div class="cite">
+      <b>原文出处</b>
+      本页是背景铺垫，不对应论文具体章节。所涉事实：训练数据规模见 §5.1（WMT 2014 英德约 450 万句对）；
+      "通过大量数据学习而非人工规则"的立场见 §1 引言第一段。
+    </div>
+  </div>
+
+  <h2><span class="n">7</span>自测</h2>
+  <div class="quiz">
+    <div class="qz">
+      <div class="q"><i>Q1</i>为什么"把语法规则写成程序"这条路最终没有走通？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>因为当年的计算机算力不够，跑不动规则</span></button>
+        <button class="opt" data-ok="1"><i>B</i><span>因为语言的例外无穷多，规则之间会互相冲突，且无法覆盖没见过的句子</span></button>
+        <button class="opt"><i>C</i><span>因为语言学家不愿意合作</span></button>
+      </div>
+      <div class="ex">算力不是主因——规则法恰恰是省算力的。真正的瓶颈是覆盖率与冲突：每补一条例外就生出新例外，而人每天都在说从没说过的新句子。</div>
+    </div>
+    <div class="qz">
+      <div class="q"><i>Q2</i>模型"训练"完成后，它里面存的是什么？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>训练集里的全部句子，需要时检索出来</span></button>
+        <button class="opt" data-ok="1"><i>B</i><span>几千万个调好的数字（参数），以及固定的计算流程</span></button>
+        <button class="opt"><i>C</i><span>一份从数据里总结出来的语法规则表</span></button>
+      </div>
+      <div class="ex">参数是数字，不是句子也不是规则条文。它答不出训练集原文，但能对相似的新输入给出合理输出。这也解释了为什么会"编造"：输出是概率上像样的结果，不保证事实正确。</div>
+    </div>
+    <div class="qz">
+      <div class="q"><i>Q3</i>「万能近似定理」保证了下面哪件事？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>只要网络够大，任何任务都能训练成功</span></button>
+        <button class="opt" data-ok="1"><i>B</i><span>足够宽的神经网络在表达能力上可以逼近任何连续函数</span></button>
+        <button class="opt"><i>C</i><span>神经网络不需要数据也能学会规律</span></button>
+      </div>
+      <div class="ex">它是一句关于"表达能力"的话：存在这样的网络。它不保证训练一定能找到、不保证有限数据够用、也不保证泛化。表达得出来 ≠ 学得出来。</div>
+    </div>
+  </div>
+
+  <div class="cite">
+    <b>原文出处</b>
+    §1 引言（从数据中学习而非人工编码规则的立场）；§5.1 训练数据与批次。
+  </div>
+
+  <div id="termIndex"></div>
+</main>
+<script src="assets/course.js"></script>
+</body>
+</html>
