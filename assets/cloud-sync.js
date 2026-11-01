@@ -135,11 +135,16 @@
 
   async function push(st) {
     const body = { state: st };
-    const r1 = await cloud.database.from(TABLE).update(body).eq('owner_id', (session.user && session.user.id) || '');
-    if (r1.error) throw r1.error;
-    if (Array.isArray(r1.data) && r1.data.length === 0) {
-      const r2 = await cloud.database.from(TABLE).insert(body).select();
-      if (r2.error && r2.error.code !== '23505') throw r2.error;
+    const cur = await cloud.database.from(TABLE).select('id').maybeSingle();
+    if (cur.error) throw cur.error;
+    if (cur.data && cur.data.id != null) {
+      const r = await cloud.database.from(TABLE).update(body).eq('id', cur.data.id).select('id');
+      if (r.error) throw r.error;
+      if (!Array.isArray(r.data) || r.data.length === 0) throw new Error('写入被拒绝（可能是权限问题）');
+    } else {
+      const r = await cloud.database.from(TABLE).insert(body).select('id');
+      if (r.error) throw r.error;
+      if (!Array.isArray(r.data) || r.data.length === 0) throw new Error('写入被拒绝（可能是权限问题）');
     }
     setDirty(false);
   }
