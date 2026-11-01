@@ -64,6 +64,31 @@
     </div>
     <pre id="exportBox" class="hide" style="margin-top:14px;padding:12px 14px;border:1px solid var(--line);
       border-radius:9px;background:var(--surface-2);font-size:11.5px;line-height:1.7;max-height:260px;overflow:auto"></pre>
+
+    <h3 class="sub-h">跨设备同步</h3>
+    <p>自测记录只存在当前浏览器里，换设备就是空的。用同步码搬运：
+      在一台设备上<b>生成</b>，把那一长串字符带到另一台设备<b>导入</b>即可，不需要账号、不联网。</p>
+    <div class="btn-row" style="margin-top:12px">
+      <button class="ctl" id="syncGenBtn">生成同步码</button>
+      <button class="ctl" id="syncImportBtn">导入同步码</button>
+    </div>
+
+    <div id="syncOut" class="hide" style="margin-top:12px">
+      <textarea id="syncCode" class="sync-ta" readonly rows="4"
+        aria-label="同步码"></textarea>
+    </div>
+
+    <div id="syncIn" class="hide" style="margin-top:12px">
+      <textarea id="syncInput" class="sync-ta" rows="4"
+        placeholder="把另一台设备生成的同步码粘贴到这里（TFC1. 开头）"></textarea>
+      <div class="btn-row" style="margin-top:10px">
+        <button class="ctl" id="syncMergeBtn">合并导入</button>
+        <button class="ctl" id="syncOverBtn">覆盖本机</button>
+      </div>
+      <p class="sync-note">合并：只补本机没有的题，已答的保持不变。覆盖：完全以同步码为准，本机记录会被替换。</p>
+    </div>
+
+    <div id="syncTip" class="sync-tip"></div>
   </div>
 
   <div class="cite">
@@ -209,5 +234,8 @@
   });
 })();
 </script>
+<script src="assets/quiz-order.js"></script>
+<script src="assets/quiz-meta.js"></script>
+<script src="assets/sync.js"></script>
 </body>
 </html>
