@@ -913,7 +913,9 @@ document.querySelectorAll('[data-w]').forEach(el=>{
   }
   load('assets/quiz-bank.js',function(){
     load('assets/quiz.js',function(){
-      load('assets/kb.js',function(){ panel(); });
+      load('assets/cloud-sync.js',function(){
+        load('assets/kb.js',function(){ panel(); });
+      });
     });
   });
 })();

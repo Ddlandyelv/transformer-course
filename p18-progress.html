@@ -65,6 +65,34 @@
     <pre id="exportBox" class="hide" style="margin-top:14px;padding:12px 14px;border:1px solid var(--line);
       border-radius:9px;background:var(--surface-2);font-size:11.5px;line-height:1.7;max-height:260px;overflow:auto"></pre>
 
+    <h3 class="sub-h">云端同步</h3>
+    <p>登录后，答题记录会存在云端。手机和电脑用同一个 WorkBuddy 账号登录，打开页面就自动对齐。</p>
+
+    <div id="cloudGuest">
+      <div class="btn-row" style="margin-top:12px">
+        <button class="ctl" id="cloudLoginBtn">使用 WorkBuddy 登录</button>
+      </div>
+      <p class="sync-note">不登录也能用——下面的同步码照样可以手动搬运记录。</p>
+    </div>
+
+    <div id="cloudUser" class="hide">
+      <div class="cloud-card">
+        <span class="cloud-dot"></span>
+        <span id="cloudWho">已登录</span>
+        <span id="cloudWhen" class="cloud-when"></span>
+      </div>
+      <div class="btn-row" style="margin-top:10px">
+        <button class="ctl" id="cloudSyncBtn">立即同步</button>
+        <button class="ctl" id="cloudOutBtn">退出登录</button>
+      </div>
+    </div>
+
+    <div id="cloudUnsupported" class="hide">
+      <div class="cloud-warn">当前域名无法直连云服务，云端同步只在 WorkBuddy 域名下可用。这里仍可使用下方的同步码。</div>
+    </div>
+
+    <div id="cloudTip" class="sync-tip"></div>
+
     <h3 class="sub-h">跨设备同步</h3>
     <p>自测记录只存在当前浏览器里，换设备就是空的。用同步码搬运：
       在一台设备上<b>生成</b>，把那一长串字符带到另一台设备<b>导入</b>即可，不需要账号、不联网。</p>
@@ -237,5 +265,37 @@
 <script src="assets/quiz-order.js"></script>
 <script src="assets/quiz-meta.js"></script>
 <script src="assets/sync.js"></script>
+<script>
+(function(){
+  function $(id){return document.getElementById(id);}
+  function paint(){
+    var C=window.CourseCloud;
+    var g=$('cloudGuest'), u=$('cloudUser'), w=$('cloudUnsupported'), tip=$('cloudTip');
+    if(!C||!g) return;
+    if(!C.supported){ g.classList.add('hide'); u.classList.add('hide'); w.classList.remove('hide'); return; }
+    w.classList.add('hide');
+    if(C.session){
+      g.classList.add('hide'); u.classList.remove('hide');
+      var nm=(C.session.user&&C.session.user.name)||'已登录';
+      $('cloudWho').textContent=nm;
+      $('cloudWhen').textContent=C.lastSync?('上次同步 '+new Date(C.lastSync).toLocaleTimeString()):'尚未同步';
+    }else{
+      g.classList.remove('hide'); u.classList.add('hide');
+    }
+    if(tip) tip.textContent=C.error||'';
+    if(tip) tip.style.color=C.error?'#C4482F':'var(--ink-3)';
+  }
+  function bind(){
+    var C=window.CourseCloud; if(!C) return;
+    C.onChange(paint);
+    var lb=$('cloudLoginBtn'); if(lb) lb.onclick=function(){ lb.disabled=true; lb.textContent='正在跳转…'; C.login().then(function(){ setTimeout(function(){lb.disabled=false;lb.textContent='使用 WorkBuddy 登录';},1500); }); };
+    var sb=$('cloudSyncBtn'); if(sb) sb.onclick=function(){ sb.disabled=true; sb.textContent='同步中…'; C.syncNow({}).then(function(r){ sb.disabled=false; sb.textContent='立即同步'; if(!r.ok&&r.message&&$('cloudTip')) $('cloudTip').textContent=r.message; }); };
+    var ob=$('cloudOutBtn'); if(ob) ob.onclick=function(){ C.logout().then(paint); };
+    paint();
+  }
+  var n=0;
+  (function wait(){ if(window.CourseCloud){ bind(); } else if(n++<60){ setTimeout(wait,150); } })();
+})();
+</script>
 </body>
 </html>
