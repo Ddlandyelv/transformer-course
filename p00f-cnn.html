@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page="cnn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>卷积网络：图像上的胜利，语言上的困境 · Transformer 精读</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<main class="doc" id="doc">
+
+  <header class="lesson-head">
+    <div class="kicker"><span class="sec-no">0.6</span><span>第零幕 · 从零开始</span><span>·</span><span>CNN</span></div>
+    <h1>卷积网络：图像上的胜利，语言上的困境</h1>
+    <p class="lede">Transformer 之前，深度学习有两个王者：处理图像的 <b>CNN</b>，和处理序列的 <b>RNN</b>。
+      论文 §2 把卷积当作最重要的对手来讨论。这一页从零讲清卷积怎么算、凭什么统治图像，
+      以及为什么同一套办法搬到语言上会打折。</p>
+    <div class="meta-row">
+      <span class="pill acc">前置：0.2 一个神经元</span>
+      <span class="pill">用于：§2 背景、§4 表 1</span>
+      <span class="pill">约 <b>22</b> 分钟</span>
+    </div>
+  </header>
+
+  <div class="whybox">
+    <div class="whybox-h">为什么学这一页</div>
+    <div class="whybox-g">
+      <div class="wide"><b>论文位置</b><span>§2 第 1 段（把卷积列为并行路线代表）；§4 表 1 的复杂度对比</span></div>
+      <div><b>不学卡在哪</b><span>读 §2 时不知道“卷积核在序列上滑动”是什么画面；看不懂表 1 里卷积那一行的 <code>k·n·d²</code> 从哪来。</span></div>
+      <div><b>它解决什么</b><span>说明“局部性”这个假设在图像上成立、在语言上要付更大代价——这正是 Transformer 换掉它的理由。</span></div>
+    </div>
+  </div>
+
+  <h2><span class="n">1</span>卷积是什么：一块滑动的放大镜</h2>
+  <div class="sec">
+    <p>一张灰度图，本质上就是一个数字矩阵：每个格子的数字表示那个像素有多亮，0 是黑，255 是白。</p>
+    <p><b>卷积核</b>（kernel，也叫滤波器）是一块很小的权重矩阵，通常是 3×3。
+      它做的事只有一件：<b>盖在图上某个位置，把盖住的 9 个数字和核里的 9 个权重逐项相乘再求和，得到一个数</b>。
+      然后向右挪一格，再算一次；一行算完换下一行。</p>
+    <p>就这么简单。整个输出图，就是卷积核滑过全图得到的成绩单。</p>
+
+    <div class="def">
+      <div class="def-h"><b>卷积核</b><i>convolution kernel / filter</i><span class="loc">§2 提到的卷积路线的基础构件</span></div>
+      <p><b>是什么：</b>一小块权重矩阵，比如 3×3 共 9 个数字。这 9 个数字是<b>学出来的</b>，和 0.2 里的权重一样。</p>
+      <p><b>它检测什么：</b>由这 9 个数字决定。全填 −1/0/1 的核检测边缘，别的组合检测斑点、条纹、特定纹理。</p>
+      <p><b>和全连接层的区别：</b>全连接的每个输出都连着全部输入；卷积的每个输出只连着一个小窗口，而且<b>整张图共用同一组权重</b>。</p>
+      <div class="x">易错：卷积核不是人手工设计的。早期图像处理确实手工设计过（Sobel 算子就是手工的），但现代 CNN 里的核全靠训练学出来，人只规定"用几个 3×3 的核"。</div>
+    </div>
+  </div>
+
+  <h2><span class="n">2</span>手算一次：竖线是怎么被检测出来的</h2>
+  <div class="sec">
+    <p>取一张 5×5 的图，中间有一条竖线（1 表示亮，0 表示暗）：</p>
+    <div class="q">0　0　1　0　0<br>0　0　1　0　0<br>0　0　1　0　0<br>0　0　1　0　0<br>0　0　1　0　0</div>
+    <p>再取一个 3×3 的核，它的作用就是"找竖直边缘"：</p>
+    <div class="q">−1　0　＋1<br>−1　0　＋1<br>−1　0　＋1</div>
+    <p>把核盖在左上角（覆盖第 0–2 列），逐项相乘再求和：</p>
+    <div class="op">
+      <div class="op-h"><span class="i">1</span>第一个位置：盖住左边三列</div>
+      <div class="op-b">
+        <dl class="op-f"><dt>盖住的 3×3</dt><dd>0 0 1 / 0 0 1 / 0 0 1</dd></dl>
+        <dl class="op-f"><dt>逐项乘</dt><dd>(−1×0 + 0×0 + 1×1) + (−1×0 + 0×0 + 1×1) + (−1×0 + 0×0 + 1×1)</dd></dl>
+        <dl class="op-f"><dt>求和</dt><dd>1 + 1 + 1 = <b>3</b></dd></dl>
+        <dl class="op-f"><dt>含义</dt><dd>这里有"从左暗到右亮"的过渡，得分高</dd></dl>
+      </div>
+    </div>
+    <div class="op">
+      <div class="op-h"><span class="i">2</span>向右挪一格：正好盖住竖线本身</div>
+      <div class="op-b">
+        <dl class="op-f"><dt>盖住的 3×3</dt><dd>0 1 0 / 0 1 0 / 0 1 0</dd></dl>
+        <dl class="op-f"><dt>逐项乘</dt><dd>左右两列都是 0，只剩中间一列被乘以 0</dd></dl>
+        <dl class="op-f"><dt>求和</dt><dd><b>0</b></dd></dl>
+        <dl class="op-f"><dt>含义</dt><dd>整片亮度均匀，没有横向变化，得分 0</dd></dl>
+      </div>
+    </div>
+    <div class="op">
+      <div class="op-h"><span class="i">3</span>再挪一格：盖住右边三列</div>
+      <div class="op-b">
+        <dl class="op-f"><dt>盖住的 3×3</dt><dd>1 0 0 / 1 0 0 / 1 0 0</dd></dl>
+        <dl class="op-f"><dt>逐项乘</dt><dd>(−1×1 + 0×0 + 1×0) 重复三次</dd></dl>
+        <dl class="op-f"><dt>求和</dt><dd>−1 + (−1) + (−1) = <b>−3</b></dd></dl>
+        <dl class="op-f"><dt>含义</dt><dd>这里是"从左亮到右暗"，符号反过来了</dd></dl>
+      </div>
+    </div>
+    <p>滑完一行得到 <b>[3, 0, −3]</b>。竖线左边得正分、右边得负分、线上得 0——
+      <b>一条竖线被变成了"左边正、右边负"的数值模式</b>。这就是"检测到边缘"的实际含义。</p>
+    <p>接着往下挪，第二行、第三行算出来的结果一模一样（因为图里的竖线每行都一样）。最终得到一张 3×3 的输出图。</p>
+
+    <div class="note">
+      <p><b>顺手记一下尺寸公式：</b>输入宽 W、核大小 K、边缘填充 P、每次挪动的步长 S，输出宽 = <code>(W − K + 2P)/S + 1</code>。
+        上面的例子：W=5、K=3、P=0、S=1 → (5−3)/1+1 = <b>3</b>，正好是 3×3。</p>
+    </div>
+  </div>
+
+  <h2><span class="n">3</span>三个性质，解释了它为什么天生适合图像</h2>
+  <div class="sec">
+    <div class="def">
+      <div class="def-h"><b>局部连接</b><i>local connectivity</i><span class="loc">CNN 的基本假设</span></div>
+      <p><b>是什么：</b>每个输出只看输入的 3×3 邻域，不看全图。</p>
+      <p><b>为什么合理：</b>图像里相邻像素高度相关，远处像素基本无关。一只猫的耳朵由相邻的几十个像素构成，不需要参考图片右下角。</p>
+      <div class="x">易错：这不只是"省参数"的工程妥协，它是一个<b>假设</b>——假设重要的关系都在近处。假设对了，省参数还更准；假设错了，模型就天生看不见远处。</div>
+    </div>
+    <div class="def">
+      <div class="def-h"><b>权重共享</b><i>weight sharing</i><span class="loc">对比全连接层</span></div>
+      <p><b>是什么：</b>同一个 3×3 核扫遍全图，所有位置用的是同一组 9 个数字。</p>
+      <p><b>省了多少：</b>28×28 的图接到 512 维全连接层，需要 784×512 ≈ <b>40 万</b>个参数；
+        用 3×3 卷积，只要 <b>9 个</b>（加偏置 10 个）。差四个数量级。</p>
+      <p><b>更深的意义：</b>因为同一组权重用在全图，所以"猫耳朵"出现在左上角还是右下角，用的是同一套检测器。这是它泛化好的根本原因。</p>
+    </div>
+    <div class="def">
+      <div class="def-h"><b>平移等变</b><i>translation equivariance</i><span class="loc">CNN 的核心优势</span></div>
+      <p><b>是什么：</b>图里的物体整体平移，输出也跟着平移，检测结果不变。</p>
+      <p><b>为什么需要：</b>一只猫在照片左边还是右边，都还是猫。全连接层做不到这点——它记住的是"第 37 个格子有值"，换个位置就认不出。</p>
+      <div class="x">易错：严格说是「等变」不是「不变」。平移后输出位置也变了，只是内容跟着走。配合池化之后才近似变成「不变」。</div>
+    </div>
+  </div>
+
+  <h2><span class="n">4</span>堆叠起来：从边缘到物体</h2>
+  <div class="sec">
+    <p>一层的卷积只能看 3×3，太小了。但把很多层叠起来，视野会一层层扩大。</p>
+    <table class="tb">
+      <thead><tr><th style="width:18%">层数</th><th style="width:26%">感受野</th><th>这一层大致在学什么</th></tr></thead>
+      <tbody>
+        <tr><td>第 1 层</td><td>3×3</td><td>边缘、色块、明暗过渡</td></tr>
+        <tr><td>第 2 层</td><td>5×5</td><td>角、拐弯、简单纹理</td></tr>
+        <tr><td>第 3 层</td><td>7×7</td><td>纹理组合、部件（眼睛、轮子）</td></tr>
+        <tr><td>第 10 层</td><td>21×21</td><td>完整物体（猫脸、车头）</td></tr>
+      </tbody>
+    </table>
+    <p>每多加一层 3×3 卷积，感受野只扩 2。这个关系是：<b>L 层 3×3 卷积的感受野 = 2L + 1</b>。</p>
+
+    <div class="def">
+      <div class="def-h"><b>池化</b><i>pooling</i><span class="loc">CNN 标配</span></div>
+      <p><b>是什么：</b>把相邻的几个数合并成一个。最常用的是最大池化：2×2 的窗口里取最大值，图和特征图都缩小一半。</p>
+      <p><b>三个作用：</b>① 尺寸减半，计算量降到四分之一；② 等效放大感受野（缩小一半后，同样的 3×3 相当于原来 6×6）；③ 提供一点平移容忍——特征挪动一两个像素，池化后的结果不变。</p>
+      <div class="x">易错：池化会丢信息，而且丢的方式是「只留最强的那个」。论文 §2 批评卷积时提到"分辨率被平均掉了"，指的是这一类降采样带来的位置精度损失。</div>
+    </div>
+
+    <div class="note">
+      <p><b>整条流水线：</b>卷积 → 激活（ReLU）→ 池化 → 再卷积 → 再池化 → … → 最后拉平接全连接层 → 输出类别。
+        1998 年的 LeNet-5、2012 年的 AlexNet，骨架都是这个。</p>
+    </div>
+  </div>
+
+  <h2><span class="n">5</span>搬到文本上：一维卷积</h2>
+  <div class="sec">
+    <p>一句话是一串词向量，可以排成一个「长度 × 维度」的矩阵。图像是二维的，文本只有一维（时间轴），
+      所以把 3×3 的核改成 <b>1×3</b> 的核——只看相邻 3 个词，在所有维度上一起算。</p>
+    <div class="op">
+      <div class="op-h"><span class="i">→</span>一维卷积处理一句话时发生什么</div>
+      <div class="op-b">
+        <dl class="op-f"><dt>输入</dt><dd>n 个词，每个 512 维，排成 n×512 的矩阵</dd></dl>
+        <dl class="op-f"><dt>卷积核</dt><dd>比如 3×512 的权重，一次盖住 3 个词</dd></dl>
+        <dl class="op-f"><dt>输出</dt><dd>每个位置得到一个数，滑完得到一个 n 维向量（用多个核就是多组特征）</dd></dl>
+        <dl class="op-f"><dt>优势</dt><dd>所有位置<b>同时算</b>，天然并行——这是它比 RNN 强的地方</dd></dl>
+        <dl class="op-f"><dt>局限</dt><dd>一次只看 3 个词，远处的关系要靠堆层</dd></dl>
+      </div>
+    </div>
+
+    <p>堆层带来的问题很直接。窗口是 3，堆 L 层能覆盖 <b>2L+1</b> 个词：</p>
+    <table class="tb">
+      <thead><tr><th style="width:26%">要联系的两个词相距</th><th style="width:22%">需要的层数</th><th>代价</th></tr></thead>
+      <tbody>
+        <tr><td>3 个词以内</td><td>1 层</td><td>很便宜</td></tr>
+        <tr><td>21 个词</td><td>10 层</td><td>还能接受</td></tr>
+        <tr><td>101 个词</td><td><b>50 层</b></td><td>深到难以训练，而且每一层都在稀释信息</td></tr>
+      </tbody>
+    </table>
+    <p>这就是 p06 背景页讲的那个 O(n/k)：<b>两个位置要被联系起来，必须落进彼此的感受野，而感受野扩张得比距离慢得多。</b></p>
+  </div>
+
+  <h2><span class="n">6</span>论文怎么算这笔账</h2>
+  <div class="sec">
+    <p>论文 §4 的表 1 给了三种层的复杂度。卷积那一行是：</p>
+    <div class="q">每层计算量 = O(k · n · d²)</div>
+    <p>k 是卷积核大小，n 是序列长度，d 是维度。意思是：每个位置要做 k×d×d 次乘法，
+      全序列 n 个位置就是 k·n·d²。</p>
+    <p>自注意力是 <code>O(n²·d)</code>。两者比较：</p>
+    <table class="tb">
+      <thead><tr><th style="width:26%">条件</th><th style="width:24%">谁更省</th><th>为什么</th></tr></thead>
+      <tbody>
+        <tr><td>n &lt; d（短序列、宽表示）</td><td><b>自注意力</b></td><td>n²·d 比 k·n·d² 小，因为 n 比 k·d 小</td></tr>
+        <tr><td>n &gt; d（长序列）</td><td>卷积</td><td>平方项压过了线性项</td></tr>
+      </tbody>
+    </table>
+    <p>论文的处境是：机器翻译的句子一般几十到一百个词，而 d=512。<b>n 远小于 d</b>，所以自注意力在这一档更划算，
+      同时还能把路径长度从 O(n/k) 降到 O(1)——一笔双赢的买卖。</p>
+    <div class="note">
+      <p><b>这句话要记住：</b>"自注意力更快"是有条件的，不是普遍真理。
+        今天的大模型动辄几万 token 的上下文，正是靠各种稀疏化、分块、线性注意力在对付这个 n²。问题和 2017 年一样，只是换了个量级。</p>
+    </div>
+  </div>
+
+  <h2><span class="n">7</span>为什么语言不像图像</h2>
+  <div class="sec">
+    <p>卷积在图像上几乎完美，因为"近处的东西相关"这个假设是真的：一只猫的胡须确实由相邻像素组成。</p>
+    <p>但语言的"近"不是空间距离，而是<b>句法关系</b>，而句法关系经常跨越很远：</p>
+    <div class="q">那只早上一直蹲在窗台上、被邻居家的狗吓得不敢下来的<b>小猫</b>，终于饿了，所以<b>它</b>叫了一声。</div>
+    <p>「它」和「小猫」隔了 25 个词。卷积要建立这种联系，得堆十几层；注意力只需一步，因为「它」可以直接去看「小猫」。</p>
+    <div class="def">
+      <div class="def-h"><b>局部性假设</b><i>locality assumption</i><span class="loc">§2、§4 隐含的核心分歧</span></div>
+      <p><b>图像里：</b>成立。相邻像素天然相关，远处的几乎无关。</p>
+      <p><b>语言里：</b>只在语法层面近似成立。相邻词常有关，但真正决定语义的关系（指代、修饰、主谓）可以横跨整句。</p>
+      <p><b>后果：</b>把一个"近处优先"的假设用在语言上，等于一开始就把远处的可能性压低了。这不是调参能救的，是结构上的偏差。</p>
+      <div class="x">易错：这不等于"卷积不能做 NLP"。ConvS2S 在 2017 年拿到过很好的翻译成绩。论文说的是：在同样效果下，注意力的路径更短、更容易学，长句上优势更明显。</div>
+    </div>
+    <p>所以 Transformer 的选择可以概括成一句话：<b>不再假设"近的更重要"，而是让每个词自己决定看谁、看多远。</b>
+      这个决定把图像领域最成功的先验扔掉了，换来的是对语言结构的适配。</p>
+  </div>
+
+  <h2><span class="n">8</span>小结</h2>
+  <div class="sec">
+    <div class="summary">
+      <h3>本页要点</h3>
+      <ol>
+        <li><b>卷积</b>就是一块小权重矩阵在输入上滑动，每处做逐项相乘求和。核里的数字是训练学出来的。</li>
+        <li>三个性质让它适合图像：<b>局部连接</b>（只看邻域）、<b>权重共享</b>（一个核扫全图）、<b>平移等变</b>（物体挪位置仍能认出）。</li>
+        <li>参数量差距极大：全连接 40 万参数的地方，3×3 卷积只要 9 个。</li>
+        <li>堆 <b>L 层 3×3 卷积，感受野是 2L+1</b>；配合池化可以进一步扩大，但会损失位置精度。</li>
+        <li>搬到文本就是 <b>1×k 的一维卷积</b>：能并行，但一次只看 k 个词，覆盖 100 个词要 50 层。</li>
+        <li>论文的账：卷积 O(k·n·d²) vs 自注意力 O(n²·d)，<b>n &lt; d 时自注意力更省</b>，且路径长度 O(n/k) → O(1)。</li>
+        <li>根本分歧是<b>局部性假设</b>：图像里成立，语言里只在语法层面近似成立。</li>
+      </ol>
+    </div>
+  </div>
+
+  <h2><span class="n">9</span>自测</h2>
+  <div class="quiz">
+    <div class="qz">
+      <div class="q"><i>Q1</i>输入是 7×7 的特征图，用 3×3 的卷积核、步长 1、不做填充，输出多大？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>7×7</span></button>
+        <button class="opt" data-ok="1"><i>B</i><span>5×5</span></button>
+        <button class="opt"><i>C</i><span>3×3</span></button>
+      </div>
+      <div class="ex">(7−3)/1+1 = 5。核每滑一次吃掉 2 个位置的余量，7 变 5、5 变 3。加一圈填充 P=1 就能保持 7×7。</div>
+    </div>
+    <div class="qz">
+      <div class="q"><i>Q2</i>卷积相比全连接层，参数量能少几个数量级，主要靠哪个性质？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>局部连接</span></button>
+        <button class="opt" data-ok="1"><i>B</i><span>权重共享</span></button>
+        <button class="opt"><i>C</i><span>平移等变</span></button>
+      </div>
+      <div class="ex">权重共享是直接原因：一个 3×3 核在全图复用，只有 9 个参数。局部连接减少的是每个输出的连接数，两者叠加才有四个数量级的差距，但"复用"是更本质的那个。</div>
+    </div>
+    <div class="qz">
+      <div class="q"><i>Q3</i>堆 6 层 3×3 卷积，感受野是多少？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>18×18</span></button>
+        <button class="opt" data-ok="1"><i>B</i><span>13×13</span></button>
+        <button class="opt"><i>C</i><span>9×9</span></button>
+      </div>
+      <div class="ex">2L+1 = 2×6+1 = 13。每层只扩 2，所以感受野增长是线性的——这正是它在长距离依赖上吃力的原因。</div>
+    </div>
+    <div class="qz">
+      <div class="q"><i>Q4</i>论文说自注意力在计算量上优于卷积，前提条件是什么？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>序列长度 n 大于表示维度 d</span></button>
+        <button class="opt" data-ok="1"><i>B</i><span>序列长度 n 小于表示维度 d</span></button>
+        <button class="opt"><i>C</i><span>卷积核大小 k 大于 3</span></button>
+      </div>
+      <div class="ex">比较 n²·d 与 k·n·d²，约掉一个 n·d 后就是 n 与 k·d 比大小。翻译任务里 n 约几十、d=512，所以自注意力更省。n 极大时会反过来。</div>
+    </div>
+    <div class="qz">
+      <div class="q"><i>Q5</i>为什么说"局部性假设"在语言上要付更大代价？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>因为句子的长度不固定</span></button>
+        <button class="opt" data-ok="1"><i>B</i><span>因为决定语义的关系（指代、修饰、主谓）经常跨越很远，与距离无关</span></button>
+        <button class="opt"><i>C</i><span>因为中文的词比英文长</span></button>
+      </div>
+      <div class="ex">图像的"近"是空间相邻，语言里真正重要的是句法关系。「它」和它指代的名词可能隔 25 个词。把"近处优先"当先验，等于一开始就压低了远处的可能性。</div>
+    </div>
+  </div>
+
+  <div class="cite">
+    <b>原文出处</b>
+    §2 第 1 段（把 ConvS2S、ByteNet 等卷积路线列为与 RNN 并列的并行方案）；
+    §4 表 1（卷积 O(k·n·d²)、自注意力 O(n²·d)、路径长度 O(n/k) 与 O(1)）；
+    §4 正文中"n 小于 d 时自注意力更快"的结论。卷积的算子细节属通用背景知识，原文未展开。
+  </div>
+
+  <div id="termIndex"></div>
+</main>
+<script src="assets/course.js"></script>
+</body>
+</html>

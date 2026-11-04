@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page="hist">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>神经网络发展史：三次浪潮与两次寒冬 · Transformer 精读</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<main class="doc" id="doc">
+
+  <header class="lesson-head">
+    <div class="kicker"><span class="sec-no">0.7</span><span>第零幕 · 从零开始</span><span>·</span><span>HISTORY</span></div>
+    <h1>神经网络发展史：三次浪潮与两次寒冬</h1>
+    <p class="lede">这篇论文不是凭空出现的。它站在一条八十年的线上，前面有两次集体放弃、三次重新出发。
+      看完这一页，你会知道 Transformer 到底解决了历史上哪个具体卡点，以及为什么"注意力"这个东西在 2017 年才成为主角。</p>
+    <div class="meta-row">
+      <span class="pill acc">前置：0.2 神经元、0.6 卷积网络</span>
+      <span class="pill">用于：§1 引言、§2 背景</span>
+      <span class="pill">约 <b>18</b> 分钟</span>
+    </div>
+  </header>
+
+  <div class="whybox">
+    <div class="whybox-h">为什么学这一页</div>
+    <div class="whybox-g">
+      <div class="wide"><b>论文位置</b><span>§1 引言（"主流序列模型基于 RNN/CNN"这句判断的历史来源）；§2 背景（自注意力并非首创）</span></div>
+      <div><b>不学卡在哪</b><span>不知道为什么论文把 RNN 和 CNN 当对手；读到"自注意力在 2014 年已被用于机器阅读理解"时没有上下文。</span></div>
+      <div><b>它解决什么</b><span>把 Transformer 放回一条连续的技术线上，看清它解决的是"长距离 + 并行"这个特定瓶颈，而不是又一次推倒重来。</span></div>
+    </div>
+  </div>
+
+  <h2><span class="n">1</span>先给结论：瓶颈一直在移动</h2>
+  <div class="sec">
+    <p>八十年的历史可以压成一句话：<b>每一次停滞，都是某个瓶颈没被解开；每一次复兴，都是那个瓶颈被绕过去了。</b></p>
+    <table class="tb">
+      <thead><tr><th style="width:16%">时期</th><th style="width:26%">卡在哪</th><th>被什么解开</th></tr></thead>
+      <tbody>
+        <tr><td>1943–1969</td><td>不知道多层网络怎么训练</td><td>（没解开，直接进了寒冬）</td></tr>
+        <tr><td>1986–1990s</td><td>算力、数据都不够，浅层方法更稳</td><td>（没解开，第二次寒冬）</td></tr>
+        <tr><td>2012</td><td>终于三样东西同时到位</td><td>大数据 + GPU + 训练技巧</td></tr>
+        <tr><td>2014–2016</td><td>序列模型必须串行，长距离衰减</td><td>注意力（但只作为辅助）</td></tr>
+        <tr><td>2017</td><td>注意力能不能不要 RNN 单独用</td><td><b>Transformer</b></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2><span class="n">2</span>1943：一个神经元，没有学习</h2>
+  <div class="sec">
+    <p>McCulloch 和 Pitts 提出了一种数学化的神经元：接收若干 0/1 输入，加权求和，超过阈值就输出 1，否则输出 0。</p>
+    <p>这其实就是 0.2 里那个神经元，只差一个"激活函数"的写法。但它<b>不会学习</b>——权重是人手工设的。
+      它证明了"用逻辑门搭出计算"是可能的，但没有解决"怎么让机器自己调参数"。</p>
+  </div>
+
+  <h2><span class="n">3</span>1958：感知机，第一次浪潮</h2>
+  <div class="sec">
+    <div class="def">
+      <div class="def-h"><b>感知机</b><i>perceptron，Rosenblatt</i><span class="loc">1958，第一次浪潮的起点</span></div>
+      <p><b>它做对了什么：</b>第一次给出了<b>学习算法</b>——分错了就把权重往正确方向调一点，分对了就不动。这已经是梯度下降的雏形。</p>
+      <p><b>当时的期待：</b>《纽约时报》报道说这是"能走路、说话、看东西的计算机的胚胎"。美国海军把它当作能识别字母的硬件来宣传。</p>
+      <p><b>它的天花板：</b>本质上只能画一条直线。<b>不管怎么训练，XOR 这类问题都做不了</b>（0.2 页里讲过这个反例）。</p>
+    </div>
+  </div>
+
+  <h2><span class="n">4</span>1969：第一次寒冬，因为一本 100 多页的书</h2>
+  <div class="sec">
+    <p>Minsky 和 Papert 出版了《Perceptrons》，严格证明了单层感知机的表达能力边界：
+      它连"两个输入是否不同"这种问题都解决不了。</p>
+    <p>这本书的影响远超它的技术内容。资助机构据此判断"神经网络这条路走不通"，资金撤走，研究停滞了近二十年。</p>
+    <div class="note warn">
+      <p><b>历史上最讽刺的一点：</b>解法当时就摆在眼前——<b>加一层</b>。0.2 页里我们用"把点搬到新坐标系"解释过多层为什么能解决 XOR。
+        问题不是没人想到多层，而是<b>没人知道怎么训练多层</b>：单层可以靠"分错了就调"直接调，多层的中间层错在哪？当时没有答案。</p>
+    </div>
+  </div>
+
+  <h2><span class="n">5</span>1986：反向传播，第二次浪潮</h2>
+  <div class="sec">
+    <p>答案就是 0.4 页讲的那个动作：<b>反向传播</b>。从输出层的错误出发，按链式法则一层层往回推，算出每个参数该往哪调。</p>
+    <p>Rumelhart、Hinton、Williams 在 1986 年把这个方法系统化并推广开来，多层网络终于可以训练了。第一次寒冬结束。</p>
+    <div class="def">
+      <div class="def-h"><b>反向传播</b><i>backpropagation</i><span class="loc">1986 年推广；更早由 Werbos（1974）等人提出</span></div>
+      <p><b>严格地说不是 1986 年发明的：</b>Werbos 的博士论文（1974）、Linnainmaa 的工作（1970）都提出过类似思想。</p>
+      <p><b>1986 年的贡献：</b>把它讲清楚、做了令人信服的实验、让整个领域接受了它。科学史上"发明"和"普及"经常不是同一件事。</p>
+      <div class="x">易错：反向传播本身只是链式法则，数学上不新鲜。真正的新意是：<b>它让"深"变得可训练</b>，而"深"意味着可以表达复杂关系。</div>
+    </div>
+    <p>同一时期，LeCun 把 0.6 页讲的卷积网络用在手写数字识别上，做出了能读支票的系统。
+      到 1998 年的 LeNet-5，CNN 的现代骨架已经完整了：卷积、池化、全连接、反向传播训练。</p>
+    <p>看起来一切都在变好。但接下来是第二次寒冬。</p>
+  </div>
+
+  <h2><span class="n">6</span>1990s 末到 2000s：第二次寒冬</h2>
+  <div class="sec">
+    <p>神经网络输给了自己人——统计学习方法。</p>
+    <table class="tb">
+      <thead><tr><th style="width:24%">对手</th><th>为什么当时更受欢迎</th></tr></thead>
+      <tbody>
+        <tr><td><b>支持向量机 SVM</b></td><td>有严格的理论保证，小数据上表现稳定，调参少</td></tr>
+        <tr><td>随机森林、 boosting</td><td>几乎不用调参就能用，工程上更省心</td></tr>
+      </tbody>
+    </table>
+    <p>神经网络的问题很实在：<b>数据不够</b>（ImageNet 这样的数据集还不存在）、<b>算力不够</b>（没有 GPU）、
+      <b>训练不稳</b>（层一深就梯度消失）。同样的任务，SVM 两天能跑出结果，神经网络要调两个月还不一定更好。</p>
+    <p>那十几年里，"神经网络"这个词在论文里出现得越来越少，很多人改称"多层感知机"，藏在统计模型的角落里。</p>
+  </div>
+
+  <h2><span class="n">7</span>2012：AlexNet，第三次浪潮</h2>
+  <div class="sec">
+    <p>转折点是 ImageNet 竞赛。这是一个 1000 类、120 万张图的数据集，2010 年开赛时最好的方法错误率还在 26% 左右。</p>
+    <p>2012 年，AlexNet 把错误率压到 <b>15.3%</b>，第二名是 26.2%。差距大到不可能用调参解释。</p>
+    <div class="op">
+      <div class="op-h"><span class="i">→</span>它做对了什么：三件事同时到位</div>
+      <div class="op-b">
+        <dl class="op-f"><dt>数据</dt><dd>ImageNet 提供了此前不存在的百万级标注数据</dd></dl>
+        <dl class="op-f"><dt>算力</dt><dd>两块 GTX 580 显卡，把训练时间从"不可行"压到"几天"</dd></dl>
+        <dl class="op-f"><dt>技巧</dt><dd>ReLU（解决梯度消失）、dropout（抑制过拟合）、数据增强</dd></dl>
+        <dl class="op-f"><dt>结构</dt><dd>8 层卷积网络——0.6 页讲的卷积、池化、全连接的组合</dd></dl>
+      </div>
+    </div>
+    <div class="note">
+      <p><b>为什么这次不一样：</b>2000 年代不是"神经网络不行"，而是<b>三个必要条件一个都不具备</b>。
+        2012 年三样同时到位，之前二十年积累的方法立刻全部生效。这也是为什么后来的进展能这么快——底层条件一旦具备，就不会再退回去了。</p>
+    </div>
+  </div>
+
+  <h2><span class="n">8</span>2013–2016：序列这条线在摸索</h2>
+  <div class="sec">
+    <p>图像被 CNN 拿下之后，注意力转向语言。这几年是关键的铺垫期：</p>
+    <table class="tb">
+      <thead><tr><th style="width:16%">年份</th><th style="width:30%">进展</th><th>意义</th></tr></thead>
+      <tbody>
+        <tr><td>2013</td><td>word2vec</td><td>词变成有语义的向量，"国王 − 男人 + 女人 ≈ 女王"开始成立</td></tr>
+        <tr><td>2014</td><td>seq2seq</td><td>用一个 RNN 读、另一个 RNN 写，翻译变成一个通用框架</td></tr>
+        <tr><td>2014</td><td><b>Bahdanau 注意力</b></td><td>解码每个词时，可以回头"看"编码器的各个位置——<b>注意力第一次登场</b></td></tr>
+        <tr><td>2015</td><td>ResNet</td><td>残差连接，把网络堆到 152 层还能训得动</td></tr>
+      </tbody>
+    </table>
+    <p>注意 2014 年那一行：<b>注意力比 Transformer 早三年出现</b>。当时的用法是"给 RNN 打的补丁"——
+      RNN 记不住长句，那就让它每写一个词都回头看一眼原文。效果立竿见影，长句翻译质量明显提升。</p>
+    <p>论文 §2 也承认这一点：自注意力并不新鲜，之前已经在阅读理解、句子表示、程序语义等任务上用过。
+      <b>Transformer 的贡献不是发明注意力，而是敢把 RNN 整个拿掉。</b></p>
+  </div>
+
+  <h2><span class="n">9</span>2017：把补丁变成主体</h2>
+  <div class="sec">
+    <p>既然注意力这么好用，为什么还要留着 RNN？留着它，就必须一个字一个字地算，并行度上不去。</p>
+    <p>Transformer 的赌注是：<b>把 RNN 拿掉，只留注意力和前馈网络，效果不会变差，速度会快很多。</b>
+      0.5 页讲过它凭什么敢这么赌（距离变成 1 步、全部位置可并行），0.6 页讲了它为此放弃了什么（局部性先验）。</p>
+    <div class="note">
+      <p><b>论文标题的分量：</b>「Attention Is All You Need」不是修辞。它在说：以前注意力是配菜，现在它是全部。
+        这句话在当时是激进主张，两年后成了行业默认。</p>
+    </div>
+  </div>
+
+  <h2><span class="n">10</span>2018 之后：从"一个任务一个模型"到"一个模型适配所有"</h2>
+  <div class="sec">
+    <p>Transformer 之后发生的事，超出了论文本身的预期：</p>
+    <ul>
+      <li><b>2018 BERT</b>：只用编码器，做"完形填空"式预训练，在十几个理解类任务上刷新纪录。</li>
+      <li><b>2018 GPT</b>：只用解码器，做"预测下一个词"，然后靠提示完成各种任务。</li>
+      <li><b>2020 之后</b>：模型规模从 6500 万参数涨到千亿级，出现了"规模越大能力越强"的现象。</li>
+    </ul>
+    <p>共同点是：<b>先在海量无标注文本上预训练，再用少量数据适配具体任务</b>。
+      这篇 2017 年的论文只做了翻译，但它提供的结构成了后来几乎所有大模型的骨架。</p>
+  </div>
+
+  <h2><span class="n">11</span>这条线上，Transformer 的位置</h2>
+  <div class="sec">
+    <div class="summary">
+      <h3>本页要点</h3>
+      <ol>
+        <li><b>1943</b> 神经元模型提出，但不会学习；<b>1958</b> 感知机第一次能学，但只能画直线。</li>
+        <li><b>1969</b> 单层感知机的局限被证明，第一次寒冬。真正的卡点是<b>不知道怎么训练多层</b>。</li>
+        <li><b>1986</b> 反向传播推广开来，多层可训练，第二次浪潮；CNN 在手写数字上落地。</li>
+        <li><b>1990s–2000s</b> 数据、算力、稳定性都不足，输给 SVM，第二次寒冬。</li>
+        <li><b>2012</b> AlexNet 三条件齐备（数据 + GPU + 技巧），第三次浪潮。</li>
+        <li><b>2014</b> 注意力作为 RNN 的补丁出现；<b>2017</b> 论文把它变成主体，删掉 RNN。</li>
+        <li><b>2018 之后</b> 预训练范式让同一套结构适配几乎所有语言任务。</li>
+        <li>一条规律：<b>每次停滞都是瓶颈没解开，每次复兴都是瓶颈被绕开</b>，而不是旧方法被彻底否定。</li>
+      </ol>
+    </div>
+  </div>
+
+  <h2><span class="n">12</span>自测</h2>
+  <div class="quiz">
+    <div class="qz">
+      <div class="q"><i>Q1</i>1969 年第一次寒冬的真正技术原因是什么？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>多层网络在理论上无法表达 XOR</span></button>
+        <button class="opt" data-ok="1"><i>B</i><span>单层感知机表达力有限，而当时没人知道怎么训练多层网络</span></button>
+        <button class="opt"><i>C</i><span>计算机算力不足以运行神经网络</span></button>
+      </div>
+      <div class="ex">多层能解决 XOR，问题在于中间层"错在哪"无法直接判断，缺少训练方法。反向传播（1986 推广）补上了这一环。</div>
+    </div>
+    <div class="qz">
+      <div class="q"><i>Q2</i>AlexNet 在 2012 年成功，最关键的变化是？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>提出了全新的网络结构</span></button>
+        <button class="opt" data-ok="1"><i>B</i><span>大数据、GPU 算力、训练技巧三件事同时到位</span></button>
+        <button class="opt"><i>C</i><span>放弃了反向传播改用新算法</span></button>
+      </div>
+      <div class="ex">结构上它仍是卷积+池化+全连接的组合。真正的变量是 120 万张标注图、显卡算力，以及 ReLU/dropout 这些让深网训得动的技巧。</div>
+    </div>
+    <div class="qz">
+      <div class="q"><i>Q3</i>关于"注意力"，说法正确的是？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>由 2017 年的 Transformer 首次提出</span></button>
+        <button class="opt" data-ok="1"><i>B</i><span>2014 年就用于 seq2seq，当时是给 RNN 打的补丁</span></button>
+        <button class="opt"><i>C</i><span>最早用于图像分类</span></button>
+      </div>
+      <div class="ex">Bahdanau 等人在 2014 年把注意力加进编码器-解码器，解决长句记忆问题。论文 §2 明确承认自注意力在此前已被使用，贡献在于把 RNN 整个移除。</div>
+    </div>
+    <div class="qz">
+      <div class="q"><i>Q4</i>2018 年之后 BERT 与 GPT 的共同思路是？</div>
+      <div class="opts">
+        <button class="opt"><i>A</i><span>每个任务单独训练一个小模型</span></button>
+        <button class="opt" data-ok="1"><i>B</i><span>先在海量无标注文本上预训练，再用少量数据适配具体任务</span></button>
+        <button class="opt"><i>C</i><span>重新引入 RNN 以提升效果</span></button>
+      </div>
+      <div class="ex">两者都沿用 Transformer 骨架，区别只在用编码器还是解码器、以及预训练目标（完形填空 vs 预测下一个词）。</div>
+    </div>
+  </div>
+
+  <div class="cite">
+    <b>原文出处</b>
+    §1 引言（把 RNN、CNN 列为当时主流的序列转换模型）；§2 背景（明确说明自注意力在此前工作中的应用，并承认并非首创）。
+    其余时间线属通用技术史，原文未涉及。
+  </div>
+
+  <div id="termIndex"></div>
+</main>
+<script src="assets/course.js"></script>
+</body>
+</html>

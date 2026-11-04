@@ -10,7 +10,9 @@ const COURSE=[
    {id:'neuron',f:'p00b-neuron.html',n:'0.2',t:'一个神经元：最小的零件'},
    {id:'exp',f:'p00c-exp.html',n:'0.3',t:'e 和 log：为什么老是出现'},
    {id:'howlearn',f:'p00d-training.html',n:'0.4',t:'模型怎么“学”：一次训练'},
-   {id:'whyattn',f:'p00e-attention.html',n:'0.5',t:'为什么需要注意力'}
+   {id:'whyattn',f:'p00e-attention.html',n:'0.5',t:'为什么需要注意力'},
+   {id:'cnn',f:'p00f-cnn.html',n:'0.6',t:'卷积网络：图像与语言'},
+   {id:'hist',f:'p00g-history.html',n:'0.7',t:'神经网络发展史'}
  ]},
  {p:'第一部分 · 前置知识',items:[
    {id:'math',f:'p01-math.html',n:'01',t:'向量、矩阵与点积'},
