@@ -34,11 +34,11 @@
     '位置 10 的列，跟位置 3 明显不同。而且因为是正弦，任意两个位置的差异只取决于<b>它们相距多远</b>，与绝对位置无关——这正是相对位置信息。'
   ];
 
-  var built = false, grid = [], colHi, rowLbl = [];
+  var built = false, grid = [], colHi, rowLbl = [], lastRows = -1, lastCol = -1;
 
   function build(host) {
     if (built) return;
-    var svg = mk('svg', { viewBox: '0 0 680 290', width: '100%', 'aria-label': '位置编码热力图' });
+    var svg = mk('svg', { viewBox: '0 0 680 264', width: '100%', 'aria-label': '位置编码热力图' });
 
     var top = mk('text', { x: X0, y: Y0 - 16, class: 'an-lbl' });
     top.textContent = '位置 →'; svg.appendChild(top);
@@ -87,14 +87,22 @@
 
       var rowsOn = i === 0 ? 0 : (i === 1 ? 2 : (i === 2 ? 4 : 8));
 
-      grid.forEach(function (g) {
-        g.r.style.opacity = g.row < rowsOn ? 1 : 0.16;
-      });
-      rowLbl.forEach(function (lb, r) { lb.style.opacity = r < rowsOn ? 0.9 : 0.28; });
+      if (rowsOn !== lastRows) {
+        for (var n = 0; n < grid.length; n++) {
+          grid[n].r.style.opacity = grid[n].row < rowsOn ? 1 : 0.16;
+        }
+        for (var m = 0; m < rowLbl.length; m++) {
+          rowLbl[m].style.opacity = m < rowsOn ? 0.9 : 0.28;
+        }
+        lastRows = rowsOn;
+      }
 
-      if (i === 5) { colHi.style.opacity = 1; colHi.setAttribute('x', X0 + 3 * CW); }
-      else if (i === 6) { colHi.style.opacity = 1; colHi.setAttribute('x', X0 + 10 * CW); }
-      else colHi.style.opacity = 0;
+      var col = i === 5 ? 3 : (i === 6 ? 10 : -1);
+      if (col !== lastCol) {
+        colHi.style.opacity = col < 0 ? 0 : 1;
+        if (col >= 0) colHi.setAttribute('x', X0 + col * CW);
+        lastCol = col;
+      }
     }
   };
 

@@ -30,7 +30,7 @@
 
   function build(host) {
     if (built) return;
-    var svg = mk('svg', { viewBox: '0 0 680 272', width: '100%', 'aria-label': '注意力：一个词向所有词连线并按权重混合' });
+    var svg = mk('svg', { viewBox: '0 0 680 252', width: '100%', 'aria-label': '注意力：一个词向所有词连线并按权重混合' });
     var defs = mk('defs', {});
     defs.innerHTML = '<marker id="atA" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="4.5" markerHeight="4.5" orient="auto"><path d="M1 1L8 5L1 9" fill="none" stroke="#0F6E56" stroke-width="1.8" stroke-linecap="round"/></marker>';
     svg.appendChild(defs);

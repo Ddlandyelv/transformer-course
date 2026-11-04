@@ -900,24 +900,25 @@ document.querySelectorAll('[data-w]').forEach(el=>{
 (function(){
   if(window.__ENHANCED_LOADED__) return;
   window.__ENHANCED_LOADED__=true;
+  var ASSET_V='?v=20261104c';
+  function v(src){ return src + (src.indexOf('?')<0 ? ASSET_V : ''); }
   function load(src,next){
     var s=document.createElement('script');
-    s.src=src; s.async=false;
+    s.src=v(src); s.async=false;
     s.onload=next; s.onerror=next;
     document.body.appendChild(s);
   }
   function panel(){
     if(document.getElementById('aiRoot')) return;
     var l=document.createElement('link');
-    l.rel='stylesheet'; l.href='assets/ai-panel.css';
+    l.rel='stylesheet'; l.href=v('assets/ai-panel.css');
     document.head.appendChild(l);
     load('assets/ai-panel.js',function(){});
   }
+  // 并行加载：只有 quiz.js 依赖题库，其余互不依赖
   load('assets/quiz-bank.js',function(){
-    load('assets/quiz.js',function(){
-      load('assets/cloud-sync.js',function(){
-        load('assets/kb.js',function(){ panel(); });
-      });
-    });
+    load('assets/quiz.js',function(){});
   });
+  load('assets/cloud-sync.js',function(){});
+  load('assets/kb.js',function(){ panel(); });
 })();

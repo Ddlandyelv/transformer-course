@@ -36,7 +36,7 @@
 
   function build(host) {
     if (built) return;
-    var svg = mk('svg', { viewBox: '0 0 680 300', width: '100%', 'aria-label': '嵌入层查表过程' });
+    var svg = mk('svg', { viewBox: '0 0 680 258', width: '100%', 'aria-label': '嵌入层查表过程' });
 
     var lt = mk('text', { x: 36, y: MY - 16, class: 'an-lbl' });
     lt.textContent = '词表'; svg.appendChild(lt);

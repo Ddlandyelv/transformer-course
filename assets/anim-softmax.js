@@ -28,7 +28,7 @@
 
   function build(host) {
     if (built) return;
-    var svg = mk('svg', { viewBox: '0 0 680 300', width: '100%', 'aria-label': 'softmax 三步：取指数再归一化' });
+    var svg = mk('svg', { viewBox: '0 0 680 272', width: '100%', 'aria-label': 'softmax 三步：取指数再归一化' });
 
     // 基线
     svg.appendChild(mk('line', { x1: 56, y1: BASE, x2: 640, y2: BASE, class: 'an-base' }));

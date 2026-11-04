@@ -27,7 +27,7 @@
 
   function build(host) {
     if (built) return;
-    var svg = mk('svg', { viewBox: '0 0 680 280', width: '100%', 'aria-label': '编码器-解码器数据流' });
+    var svg = mk('svg', { viewBox: '0 0 680 262', width: '100%', 'aria-label': '编码器-解码器数据流' });
     var defs = mk('defs', {});
     defs.innerHTML = '<marker id="flA" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M1 1L8 5L1 9" fill="none" stroke="#9AA6A2" stroke-width="1.6" stroke-linecap="round"/></marker>';
     svg.appendChild(defs);

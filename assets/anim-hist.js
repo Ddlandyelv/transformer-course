@@ -35,7 +35,7 @@
 
   function build(host) {
     if (built) return;
-    var svg = mk('svg', { viewBox: '0 0 680 230', width: '100%', 'aria-label': '神经网络发展时间轴，三次浪潮与两次寒冬' });
+    var svg = mk('svg', { viewBox: '0 0 680 202', width: '100%', 'aria-label': '神经网络发展时间轴，三次浪潮与两次寒冬' });
 
     svg.appendChild(mk('line', { x1: 40, y1: AX, x2: 646, y2: AX, stroke: '#E2E6E9', 'stroke-width': 2 }));
     prog = mk('line', { x1: 40, y1: AX, x2: X0, y2: AX, class: 'an-prog' });
