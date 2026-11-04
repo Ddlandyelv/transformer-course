@@ -62,8 +62,6 @@
       counter.textContent = (i + 1) + ' / ' + count;
       dotEls.forEach((d, n) => d.classList.toggle('on', n === i));
       cap.innerHTML = caps[i] || '';
-      cap.style.opacity = '0';
-      requestAnimationFrame(() => { cap.style.opacity = '1'; });
       render(i, body);
       prev.disabled = i === 0;
       next.disabled = i === count - 1;
