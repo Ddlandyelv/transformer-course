@@ -29,6 +29,12 @@
   function build(host) {
     if (built) return;
     var svg = mk('svg', { viewBox: '0 0 680 272', width: '100%', 'aria-label': 'softmax 三步：取指数再归一化' });
+    var dfn = mk('defs', {});
+    dfn.innerHTML = '<linearGradient id="smP" x1="0" y1="0" x2="0" y2="1">' +
+      '<stop offset="0" class="st-top"/><stop offset="1" class="st-bot"/></linearGradient>' +
+      '<linearGradient id="smN" x1="0" y1="0" x2="0" y2="1">' +
+      '<stop offset="0" class="st-n-top"/><stop offset="1" class="st-n-bot"/></linearGradient>';
+    svg.appendChild(dfn);
 
     // 基线
     svg.appendChild(mk('line', { x1: 56, y1: BASE, x2: 640, y2: BASE, class: 'an-base' }));
@@ -37,7 +43,7 @@
 
     for (var i = 0; i < DATA.length; i++) {
       var x = X0 + i * (W + GAP);
-      var r = mk('rect', { x: x, y: BASE, width: W, height: 1, rx: 4, class: 'an-bar' });
+      var r = mk('rect', { x: x, y: BASE, width: W, height: 1, rx: 6, class: 'an-bar' });
       svg.appendChild(r); bars.push(r);
 
       var t = mk('text', { x: x + W / 2, y: BASE - 8, class: 'an-vtxt' });
@@ -84,12 +90,19 @@
       build(host);
       for (var k = 0; k < DATA.length; k++) {
         var g = geo(i, k);
+        // 错峰：从左到右依次长起来
+        bars[k].style.transitionDelay = (k * 0.06) + 's';
         bars[k].setAttribute('y', g.y);
         bars[k].setAttribute('height', g.h);
         bars[k].classList.toggle('neg', g.neg);
-        bars[k].classList.toggle('hot', (i === 4 || i === 3) && DATA[k].p > 50);
+        bars[k].style.fill = g.neg ? 'url(#smN)' : 'url(#smP)';
+        bars[k].classList.toggle('hot', (i === 3 || i === 4) && DATA[k].p > 50);
         vt[k].setAttribute('y', g.neg ? g.y + g.h + 16 : g.y - 8);
         vt[k].textContent = txt(i, k);
+        vt[k].classList.toggle('on', i >= 1);
+        vt[k].style.fill = (i >= 3 && DATA[k].p > 50) ? 'var(--accent-ink)' : 'var(--ink-2)';
+        vt[k].style.fontWeight = (i >= 3 && DATA[k].p > 50) ? '600' : '400';
+        vt[k].style.transitionDelay = (0.12 + k * 0.06) + 's';
       }
       sums.textContent = i >= 2 ? '总和 = ' + (i >= 3 ? '100%' : '10.01') : '';
     }

@@ -89,7 +89,9 @@
 
       if (rowsOn !== lastRows) {
         for (var n = 0; n < grid.length; n++) {
-          grid[n].r.style.opacity = grid[n].row < rowsOn ? 1 : 0.16;
+          var g = grid[n];
+          g.r.style.transitionDelay = ((g.row % 2) * 0.05) + 's';
+          g.r.style.opacity = g.row < rowsOn ? 1 : 0.16;
         }
         for (var m = 0; m < rowLbl.length; m++) {
           rowLbl[m].style.opacity = m < rowsOn ? 0.9 : 0.28;

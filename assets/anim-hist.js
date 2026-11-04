@@ -49,14 +49,14 @@
 
     for (var i = 0; i < NODES.length; i++) {
       var x = X0 + i * STEP, n = NODES[i];
-      var d = mk('circle', { cx: x, cy: AX, r: 6, class: 'an-node' + (n.cold ? ' cold' : '') });
+      var d = mk('circle', { cx: x, cy: AX, r: 6, class: 'an-node an-pop' + (n.cold ? ' cold' : '') });
       svg.appendChild(d); dots.push(d);
 
-      var y = mk('text', { x: x, y: AX + 28, class: 'an-yr' });
+      var y = mk('text', { x: x, y: AX + 28, class: 'an-yr an-rise' });
       y.textContent = n.y; svg.appendChild(y); yrs.push(y);
 
       var ey = i % 2 === 0 ? AX - 52 : AX - 32;
-      var t = mk('text', { x: x, y: ey, class: 'an-ev', 'font-size': n.e.length > 8 ? 9.5 : 11 });
+      var t = mk('text', { x: x, y: ey, class: 'an-ev an-rise', 'font-size': n.e.length > 8 ? 9.5 : 11 });
       t.textContent = n.e; svg.appendChild(t); evs.push(t);
     }
 
@@ -78,6 +78,7 @@
       for (var k = 0; k < NODES.length; k++) {
         var reached = i > 0 && k <= cur;
         dots[k].classList.toggle('on', reached);
+        dots[k].style.transitionDelay = reached ? ((k === cur ? 0.08 : 0) + 's') : '0s';
         dots[k].classList.toggle('cur', k === active);
         dots[k].setAttribute('r', k === active ? 8 : 6);
         yrs[k].classList.toggle('on', reached);

@@ -66,8 +66,14 @@
     });
 
     function arrow(x1, x2, y) {
-      var l = mk('line', { x1: x1, y1: y, x2: x2, y2: y, class: 'an-flow', 'marker-end': 'url(#flA)' });
-      svg.appendChild(l); arrows.push(l);
+      var l = mk('line', {
+        x1: x1, y1: y, x2: x2, y2: y,
+        class: 'an-flow an-draw', 'marker-end': 'url(#flA)'
+      });
+      svg.appendChild(l);
+      var len = Math.abs(x2 - x1);
+      l.style.setProperty('--len', len);
+      arrows.push({ el: l, len: len });
       return l;
     }
     arrow(96, ENC_X - 2, 140);        // 输入 -> 编码器
@@ -110,11 +116,12 @@
       if (i >= 5) lit(boxes.lin, true);
       if (i >= 6) lit(boxes.out, true);
 
-      arrows[0].classList.toggle('on', i >= 2);
-      arrows[1].classList.toggle('on', i >= 4);
-      arrows[2].classList.toggle('on', i >= 5);
-      arrows[3].classList.toggle('on', i >= 6);
-      arrows[4].classList.toggle('on', i >= 6);
+      var gates = [2, 4, 5, 6, 6];
+      arrows.forEach(function (o, n) {
+        var on = i >= gates[n];
+        o.el.classList.toggle('on', on);
+        o.el.style.transitionDelay = on ? (n * 0.06) + 's' : '0s';
+      });
       labels.forEach(function (l) { l.style.opacity = i >= 6 ? 1 : 0; });
     }
   };

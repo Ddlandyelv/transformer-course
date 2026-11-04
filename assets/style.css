@@ -427,15 +427,19 @@ table.mx td.best{border-color:var(--accent);font-weight:600}
   padding:11px 13px;font-size:12.5px;line-height:1.7;color:var(--ink-2)}
 
 /* ===== 分步动画 ===== */
-.an-wrap{margin:26px 0;border:1px solid var(--line);border-radius:14px;
-  background:var(--surface);overflow:hidden;contain:layout paint}
+.an-wrap{margin:28px 0;border:1px solid color-mix(in srgb,var(--line) 70%,transparent);
+  border-radius:16px;background:var(--surface);overflow:hidden;contain:layout paint;
+  box-shadow:0 1px 2px rgba(20,22,28,.03), 0 10px 30px -18px rgba(20,22,28,.18)}
 .an-head{display:flex;align-items:baseline;gap:10px;padding:14px 20px 0}
-.an-title{font-size:11.5px;font-weight:600;color:var(--ink-3);letter-spacing:.06em}
+.an-title{font-size:11.5px;font-weight:600;color:var(--ink-3);letter-spacing:.06em;
+  display:inline-flex;align-items:center}
+.an-title::before{content:'';width:5px;height:5px;border-radius:50%;
+  background:var(--accent);margin-right:8px;flex:none}
 .an-counter{margin-left:auto;font-family:var(--mono);font-size:11px;
   color:var(--ink-3);letter-spacing:.06em;flex:none}
 .an-body{padding:4px 20px 0;background:var(--surface)}
 .an-body svg{display:block;width:100%;height:auto;max-width:100%;margin:0 auto}
-.an-cap{padding:12px 20px 16px;font-size:13.2px;line-height:1.8;color:var(--ink-2);
+.an-cap{padding:14px 20px 16px;font-size:13.2px;line-height:1.8;color:var(--ink-2);
   min-height:3.9em}
 .an-cap b{color:var(--ink);font-weight:600}
 .an-cap code{font-size:12px}
@@ -485,7 +489,8 @@ table.mx td.best{border-color:var(--accent);font-weight:600}
 
 /* 动画图元：颜色走 CSS 类，避免 SVG 属性里 var() 不解析 */
 .an-cell{fill:var(--surface-2);stroke:var(--line);stroke-width:.5}
-.an-cell.hot{fill:var(--accent-soft);stroke:var(--accent);stroke-width:1}
+.an-cell.hot{fill:color-mix(in srgb,var(--accent) 9%,var(--surface));
+  stroke:color-mix(in srgb,var(--accent) 55%,var(--surface));stroke-width:1.2}
 .an-num{fill:var(--ink-3)}
 .an-num.hot{fill:var(--accent-ink);font-weight:600}
 .an-num.done{fill:var(--ink)}
@@ -515,9 +520,9 @@ table.mx td.best{border-color:var(--accent);font-weight:600}
 .an-xtxt{font-size:11.5px;fill:var(--ink-3);text-anchor:middle}
 .an-sum{font-family:var(--mono);font-size:13px;fill:var(--accent-ink);font-weight:600}
 .an-word{font-size:13px;fill:var(--ink);text-anchor:middle;dominant-baseline:central}
-.an-wt{font-family:var(--mono);font-size:13px;fill:var(--ink-3);text-anchor:middle;transition:fill .25s}
+.an-wt{font-family:var(--mono);font-size:13px;fill:var(--ink-3);text-anchor:middle}
 .an-wt.on{fill:var(--accent-ink);font-weight:600}
-.an-arc{stroke:var(--accent);transition:stroke-width .35s,opacity .35s}
+.an-arc{stroke:var(--accent)}
 .an-seg{fill:var(--accent);transition:opacity .3s}
 .an-node{fill:var(--line-2);transition:fill .3s}
 .an-node.on{fill:var(--accent)}
@@ -564,7 +569,7 @@ table.mx td.best{border-color:var(--accent);font-weight:600}
 .an-heat.p1{fill:color-mix(in srgb,var(--accent) 22%,var(--surface))}
 .an-heat.p2{fill:color-mix(in srgb,var(--accent) 45%,var(--surface))}
 .an-heat.p3{fill:color-mix(in srgb,var(--accent) 68%,var(--surface))}
-.an-heat.p4{fill:var(--accent)}
+.an-heat.p4{fill:color-mix(in srgb,var(--accent) 88%,var(--surface))}
 .an-heat.n1{fill:color-mix(in srgb,var(--warm) 16%,var(--surface))}
 .an-heat.n2{fill:color-mix(in srgb,var(--warm) 34%,var(--surface))}
 .an-heat.n3{fill:color-mix(in srgb,var(--warm) 52%,var(--surface))}
@@ -577,3 +582,48 @@ table.mx td.best{border-color:var(--accent);font-weight:600}
   .an-ctrl{gap:6px}
   .an-btn{height:32px;padding:0 11px;font-size:12px}
 }
+
+/* ===== 动画：让元素自己在时间里动 ===== */
+@keyframes anRise{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}
+@keyframes anPop{0%{opacity:0;transform:scale(.82)}60%{opacity:1;transform:scale(1.04)}100%{opacity:1;transform:scale(1)}}
+
+/* 描边生长：配合 JS 设 --len */
+.an-draw{stroke-dasharray:var(--len,600);stroke-dashoffset:var(--len,600);
+  transition:stroke-dashoffset .85s cubic-bezier(.33,1,.68,1),
+             stroke-width .3s ease, opacity .35s ease}
+.an-draw.on{stroke-dashoffset:0}
+
+/* 上浮入场 */
+.an-rise{opacity:0;transform:translateY(7px);
+  transition:opacity .45s ease, transform .45s cubic-bezier(.22,1,.36,1), fill .3s ease}
+.an-rise.on{opacity:1;transform:translateY(0)}
+
+/* 弹出 */
+.an-pop{opacity:0;transform:scale(.86);transform-box:fill-box;transform-origin:center;
+  transition:opacity .3s ease,transform .4s cubic-bezier(.34,1.4,.64,1)}
+.an-pop.on{opacity:1;transform:scale(1)}
+
+/* 横向展开（条形图、进度条） */
+.an-sweep{transform:scaleX(0);transform-origin:left center;transform-box:fill-box;
+  transition:transform .7s cubic-bezier(.22,1,.36,1)}
+.an-sweep.on{transform:scaleX(1)}
+
+/* 竖向生长（柱子） */
+.an-risebar{transform:scaleY(0);transform-origin:bottom center;transform-box:fill-box;
+  transition:transform .6s cubic-bezier(.22,1,.36,1)}
+.an-risebar.on{transform:scaleY(1)}
+
+/* 焦点呼吸 */
+@keyframes anBreath{0%,100%{opacity:.55}50%{opacity:1}}
+.an-breath{animation:anBreath 2.4s ease-in-out infinite}
+/* 柱状图数值：跟着柱子浮起 */
+.an-vtxt{opacity:0;transition:opacity .35s ease .12s}
+.an-vtxt.on{opacity:1}
+.an-bar{transition:y .5s cubic-bezier(.22,1,.36,1), height .5s cubic-bezier(.22,1,.36,1),
+  opacity .25s, fill .25s}
+/* 柱状渐变（分档色由主题变量决定，暗色主题自动跟随） */
+#smP .st-top{stop-color:color-mix(in srgb,var(--accent) 96%,var(--surface))}
+#smP .st-bot{stop-color:color-mix(in srgb,var(--accent) 48%,var(--surface))}
+#smN .st-n-top{stop-color:color-mix(in srgb,var(--warm) 82%,var(--surface))}
+#smN .st-n-bot{stop-color:color-mix(in srgb,var(--warm) 42%,var(--surface))}
+.an-base{stroke:var(--line-2);stroke-width:1.2}
