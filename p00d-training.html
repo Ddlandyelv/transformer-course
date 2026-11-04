@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>模型怎么"学"：一次训练里发生的事 · Transformer 精读</title>
-<link rel="stylesheet" href="assets/style.css?v=20261104d">
+<link rel="stylesheet" href="assets/style.css?v=20261104f">
 </head>
 <body>
 <main class="doc" id="doc">
@@ -274,24 +274,24 @@
 
   <div id="termIndex"></div>
 </main>
-<script src="assets/anim.js?v=20261104d"></script>
+<script src="assets/anim.js?v=20261104f"></script>
 <script>
 (function(){
   function mk(t,a){var e=document.createElementNS('http://www.w3.org/2000/svg',t);for(var k in a)e.setAttribute(k,a[k]);return e;}
   var X0=80, X1=610, Y0=210, Y1=70;
-  function lossOf(w){ return 3*(w-1)*(w-1)+0.18; }
-  function xOf(w){ return X0 + (w/2)*(X1-X0); }
-  function yOf(w){ var l=lossOf(w); var t=Math.min(1, l/3.3); return Y0 - t*(Y0-Y1); }
+  function lossOf(w){ return 1.2*(w-1)*(w-1)+0.18; }
+  function xOf(w){ return X0 + (w/1.6)*(X1-X0); }
+  function yOf(w){ var l=lossOf(w); var t=Math.min(1, l/5.0); return Y0 - t*(Y0-Y1); }
   // 迭代序列
-  var seq=[0.2], w=0.2, LR=0.12;
-  for(var i=0;i<5;i++){ var g=6*(w-1); w=w-LR*g; seq.push(Math.round(w*1000)/1000); }
+  var seq=[0.05], w=0.05, LR=0.2;
+  for(var i=0;i<7;i++){ var g=2.4*(w-1); w=w-LR*g; seq.push(Math.round(w*1000)/1000); }
   var caps=[];
   caps.push('参数现在在 w = 0.20 的位置，损失很高（约 '+lossOf(0.2).toFixed(2)+'）。小球想下到谷底，但它不知道谷底在哪，只能看脚下。');
   for(var i2=1;i2<seq.length;i2++){
     var wPrev=seq[i2-1], wNow=seq[i2];
-    var grad=6*(wPrev-1);
+    var grad=2.4*(wPrev-1);
     caps.push('第 '+i2+' 步：脚下的坡度（梯度）是 '+grad.toFixed(2)+'，说明「把 w 调大」能让损失下降。'+
-      '按学习率 0.12 走过去，w = '+wNow.toFixed(3)+'，损失降到 '+lossOf(wNow).toFixed(2)+'。');
+      '按学习率 '+LR+' 走过去，w = '+wNow.toFixed(3)+'，损失降到 '+lossOf(wNow).toFixed(2)+'。');
   }
   caps.push('四步之后 w = '+seq[seq.length-1].toFixed(3)+'，损失从 '+lossOf(0.2).toFixed(2)+' 降到 '+lossOf(seq[seq.length-1]).toFixed(2)+
     '。它没有一步跳到谷底，只是一路下坡——这就是「梯度下降」这个名字的全部含义。');
@@ -307,16 +307,19 @@
     // 曲线
     var d='';
     for(var k=0;k<=100;k++){
-      var ww=k/100*2, x=xOf(ww), y=yOf(ww);
+      var ww=k/100*1.6, x=xOf(ww), y=yOf(ww);
       d += (k===0?'M':'L')+x.toFixed(1)+' '+y.toFixed(1);
     }
-    var p=mk('path',{d:d,fill:'none',stroke:'#B9C6C2','stroke-width':2.2});
+    var p=mk('path',{d:d,fill:'none',stroke:'#A8B4B0','stroke-width':2.4,class:'an-draw','stroke-linecap':'round'});
     svg.appendChild(p); pathEl=p;
+    var clen=p.getTotalLength();
+    p.style.setProperty('--len',clen);
+    p.dataset.len=clen;
 
     // 谷底虚线
     svg.appendChild(mk('line',{x1:xOf(1),y1:yOf(1),x2:xOf(1),y2:Y0+10,stroke:'#D8DEE2',
       'stroke-width':1,'stroke-dasharray':'4 4'}));
-    var gl=mk('text',{x:xOf(1),y:Y0+26,'text-anchor':'middle',class:'an-lbl'});
+    var gl=mk('text',{x:xOf(1),y:Y0+42,'text-anchor':'middle',class:'an-lbl'});
     gl.textContent='谷底 w≈1'; svg.appendChild(gl);
 
     // 轴
@@ -357,7 +360,8 @@
     captions:caps,
     render:function(i,host){
       build(host);
-      var step=Math.max(0,i-1);
+      pathEl.classList.add('on');
+      var step=Math.min(i, seq.length-1);
       var cur=seq[step];
       ball.setAttribute('cx',xOf(cur));
       ball.setAttribute('cy',yOf(cur));
@@ -380,6 +384,6 @@
   if(window.Anim) Anim.boot();
 })();
 </script>
-<script src="assets/course.js?v=20261104d"></script>
+<script src="assets/course.js?v=20261104f"></script>
 </body>
 </html>

@@ -28,7 +28,7 @@
     var x = x0 + c * (CS + CG), y = Y0 + r * (CS + CG);
     var rect = mk('rect', { x: x, y: y, width: CS, height: CS, rx: 5, class: 'an-cell' });
     grid.appendChild(rect);
-    var t = mk('text', { x: x + CS / 2, y: y + CS / 2 + 1, class: 'an-mtx' });
+    var t = mk('text', { x: x + CS / 2, y: y + CS / 2 + 1, class: 'an-mtx an-pop' });
     grid.appendChild(t);
     return { r: rect, t: t };
   }
@@ -44,8 +44,8 @@
     });
 
     for (var r = 0; r < 3; r++) for (var c = 0; c < 3; c++) {
-      var a = cell(svg, null, r, c, AX); a.t.textContent = A[r][c]; ac.push(a);
-      var b = cell(svg, null, r, c, BX); b.t.textContent = B[r][c]; bc.push(b);
+      var a = cell(svg, null, r, c, AX); a.t.textContent = A[r][c]; a.t.classList.add('on'); ac.push(a);
+      var b = cell(svg, null, r, c, BX); b.t.textContent = B[r][c]; b.t.classList.add('on'); bc.push(b);
       var o = cell(svg, null, r, c, CX); o.t.textContent = ''; cc.push(o);
     }
 
@@ -54,7 +54,7 @@
     var eq = mk('text', { x: (BX + 147 + CX) / 2, y: Y0 + 1.5 * (CS + CG) + 4, class: 'an-op' });
     eq.textContent = '='; svg.appendChild(eq);
 
-    expr = mk('text', { x: 340, y: 268, class: 'an-expr', 'text-anchor': 'middle' });
+    expr = mk('text', { x: 340, y: 254, class: 'an-expr an-rise on', 'text-anchor': 'middle' });
     svg.appendChild(expr);
 
     host.appendChild(svg);
@@ -97,8 +97,11 @@
         // C
         var filled = (idx === 0) ? (i >= 5) : (i >= 6);
         cc[idx].t.textContent = filled ? C[r][c] : '';
+        // 只有 C 自己的格子弹出，A/B 的输入数字保持静止
+        cc[idx].t.classList.toggle('on', filled);
         cc[idx].r.classList.toggle('done', filled);
         cc[idx].r.classList.toggle('hot', idx === 0 && i === 5);
+        cc[idx].t.style.transitionDelay = (filled ? (idx % 3) * 0.05 : 0) + 's';
       }
 
       var parts = [1 * 2, 2 * 1, 3 * 0];

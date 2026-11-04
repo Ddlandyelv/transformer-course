@@ -473,7 +473,7 @@ table.mx td.best{border-color:var(--accent);font-weight:600}
 .an-ring{transition:x .38s cubic-bezier(.34,1.24,.64,1),y .38s cubic-bezier(.34,1.24,.64,1);
   fill:none;stroke:var(--accent);stroke-width:2.2;rx:5}
 .an-hot{fill:var(--accent-soft)!important}
-.an-num{font-family:var(--mono);font-size:12px;fill:var(--ink-3);text-anchor:middle;
+.an-num{font-family:var(--mono);font-size:12px;fill:var(--ink-2);text-anchor:middle;
   dominant-baseline:central;transition:fill .2s}
 .an-num.on{fill:var(--accent-ink);font-weight:600}
 .an-lbl{font-family:var(--mono);font-size:10.5px;fill:var(--ink-3)}
@@ -488,7 +488,7 @@ table.mx td.best{border-color:var(--accent);font-weight:600}
 }
 
 /* 动画图元：颜色走 CSS 类，避免 SVG 属性里 var() 不解析 */
-.an-cell{fill:var(--surface-2);stroke:var(--line);stroke-width:.5}
+.an-cell{fill:var(--surface-2);stroke:var(--line-2);stroke-width:.7}
 .an-cell.hot{fill:color-mix(in srgb,var(--accent) 9%,var(--surface));
   stroke:color-mix(in srgb,var(--accent) 55%,var(--surface));stroke-width:1.2}
 .an-num{fill:var(--ink-3)}
@@ -627,3 +627,10 @@ table.mx td.best{border-color:var(--accent);font-weight:600}
 #smN .st-n-top{stop-color:color-mix(in srgb,var(--warm) 82%,var(--surface))}
 #smN .st-n-bot{stop-color:color-mix(in srgb,var(--warm) 42%,var(--surface))}
 .an-base{stroke:var(--line-2);stroke-width:1.2}
+/* 嵌入式色块：出现时轻微放大 */
+.an-heat{transform-box:fill-box;transform-origin:center;
+  transition:opacity .28s ease, transform .35s cubic-bezier(.34,1.3,.64,1)}
+/* 卷积输出格：数字弹出 */
+.an-otxt{transform-box:fill-box;transform-origin:center;transform:scale(.75);
+  transition:opacity .22s ease, transform .3s cubic-bezier(.34,1.3,.64,1)}
+.an-otxt.on{transform:scale(1)}

@@ -86,7 +86,11 @@
       d: 'M611 172 L611 226 L61 226 L61 172',
       fill: 'none', class: 'an-loop', 'marker-end': 'url(#flA)'
     });
-    svg.appendChild(loop); arrows.push(loop);
+    svg.appendChild(loop);
+    var llen = loop.getTotalLength();
+    loop.style.setProperty('--len', llen);
+    loop.classList.add('an-draw');
+    arrows.push({ el: loop, len: llen });
     var lt = mk('text', { x: 336, y: 246, class: 'an-lbl', 'text-anchor': 'middle' });
     lt.textContent = '把输出接到输入末尾，再跑一遍';
     svg.appendChild(lt); labels.push(lt);

@@ -44,7 +44,7 @@
     mt.textContent = '嵌入矩阵 37000 × 512'; svg.appendChild(mt);
 
     // 行高亮
-    rowHi = mk('rect', { x: MX - 5, y: MY - 3, width: COLS * CW + 10, height: CH + 6, rx: 6, class: 'an-rowhi' });
+    rowHi = mk('rect', { x: MX - 5, y: MY - 3, width: COLS * CW + 10, height: CH + 6, rx: 6, class: 'an-rowhi an-sweep' });
     svg.appendChild(rowHi);
 
     for (var r = 0; r < ROWS; r++) {
@@ -101,6 +101,7 @@
       build(host);
 
       rowHi.style.opacity = i >= 2 ? 1 : 0;
+      rowHi.classList.toggle('on', i >= 2);
       pickVec.style.opacity = i >= 3 ? 1 : 0;
       pickLbl.style.opacity = i >= 3 ? 1 : 0;
 
@@ -112,7 +113,11 @@
         c.t.style.opacity = (i >= 3 && c.ri !== PICK) ? 0.3 : 1;
       });
 
-      pickCells.forEach(function (cr) { cr.style.opacity = i >= 3 ? 1 : 0; });
+      pickCells.forEach(function (cr, n) {
+        cr.style.transitionDelay = i >= 3 ? (n * 0.05) + 's' : '0s';
+        cr.style.opacity = i >= 3 ? 1 : 0;
+        cr.style.transform = (i >= 3 ? 'scale(1)' : 'scale(.7)');
+      });
 
       scaleLbl.textContent = i >= 4 ? '每格数值 × 22.6　例：0.9 → 20.1' : '6 个色块代表 512 个数';
       pickTxt.textContent = i >= 5 ? '再加位置编码 → 进入第 1 层' : '';

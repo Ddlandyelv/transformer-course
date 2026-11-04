@@ -53,9 +53,11 @@
     // 残差弧线
     arc = mk('path', {
       d: 'M ' + (X0 - 2) + ' ' + (Y[0] + TH / 2) + ' C 16 ' + (Y[0] + TH / 2) + ', 16 ' + (Y[2] + TH / 2) + ', ' + (X0 - 2) + ' ' + (Y[2] + TH / 2),
-      class: 'an-resarc', 'marker-end': 'url(#rsA)'
+      class: 'an-resarc an-draw', 'marker-end': 'url(#rsA)'
     });
     svg.appendChild(arc);
+    var alen = arc.getTotalLength();
+    arc.style.setProperty('--len', alen);
 
     // 宽度标签
     lab1 = mk('text', { x: X0 + N1 * TW + 10, y: Y[0] + TH / 2 + 4, class: 'an-step' });
@@ -82,21 +84,25 @@
     render: function (i, host) {
       build(host);
 
-      t1.forEach(function (r) {
+      t1.forEach(function (r, n) {
+        r.style.transitionDelay = (n * 0.028) + 's';
         r.style.opacity = 1;
         r.classList.toggle('hot', i === 0 || i === 4);
       });
-      t2.forEach(function (r) {
+      t2.forEach(function (r, n) {
+        r.style.transitionDelay = i >= 1 ? (n * 0.0045) + 's' : '0s';
         r.style.opacity = i >= 1 ? 1 : 0;
         r.classList.toggle('dead', !!r.dataset.dead && i >= 2);
-        r.classList.toggle('hot', i === 1);
+        r.classList.toggle('hot', i === 1 && n < 16);
       });
-      t3.forEach(function (r) {
+      t3.forEach(function (r, n) {
+        r.style.transitionDelay = i >= 3 ? (0.1 + n * 0.028) + 's' : '0s';
         r.style.opacity = i >= 3 ? 1 : 0;
         r.classList.toggle('hot', i === 3 || i === 4);
       });
 
       arc.style.opacity = i >= 4 ? 1 : 0;
+      arc.classList.toggle('on', i >= 4);
       lab2.style.opacity = i >= 1 ? 1 : 0.25;
       lab3.style.opacity = i >= 3 ? 1 : 0.25;
       m1.style.opacity = i >= 1 ? 1 : 0.25;
