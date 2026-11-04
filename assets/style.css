@@ -425,3 +425,69 @@ table.mx td.best{border-color:var(--accent);font-weight:600}
 .cloud-when{margin-left:auto;font-size:11.5px;color:var(--ink-3);font-family:var(--mono)}
 .cloud-warn{border:1px solid var(--warm);background:var(--warm-soft);border-radius:9px;
   padding:11px 13px;font-size:12.5px;line-height:1.7;color:var(--ink-2)}
+
+/* ===== 分步动画 ===== */
+.an-wrap{margin:22px 0;border:1px solid var(--line);border-radius:12px;background:var(--surface);
+  overflow:hidden}
+.an-head{display:flex;align-items:center;gap:10px;padding:10px 15px;
+  border-bottom:1px solid var(--line);background:var(--surface-2)}
+.an-title{font-size:12.5px;font-weight:600;color:var(--ink-2);letter-spacing:.02em}
+.an-counter{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--ink-3)}
+.an-body{padding:14px 15px 6px;background:var(--surface)}
+.an-body svg{display:block;width:100%;height:auto;max-width:620px;margin:0 auto}
+.an-cap{padding:8px 15px 12px;font-size:13px;line-height:1.75;color:var(--ink-2);
+  min-height:3.6em;transition:opacity .18s}
+.an-cap b{color:var(--ink)}
+.an-cap code{font-size:12px}
+.an-ctrl{display:flex;gap:8px;padding:0 15px 10px;flex-wrap:wrap}
+.an-btn{height:30px;padding:0 13px;border:1px solid var(--line-2);border-radius:7px;
+  background:var(--surface);color:var(--ink-2);font-size:12.5px;cursor:pointer;transition:.15s}
+.an-btn:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+.an-btn:disabled{opacity:.38;cursor:default}
+.an-btn-main{min-width:66px;font-weight:600;color:var(--ink)}
+.an-btn-main.playing{border-color:var(--accent);color:var(--accent)}
+.an-dots{display:flex;gap:5px;padding:0 15px 14px;flex-wrap:wrap}
+.an-dot{width:16px;height:4px;border:0;border-radius:2px;background:var(--line-2);cursor:pointer;
+  padding:0;transition:.2s}
+.an-dot.on{background:var(--accent);width:26px}
+.an-wrap:focus{outline:none}
+.an-wrap:focus-visible{box-shadow:0 0 0 2px var(--accent-soft)}
+
+/* 动画内的通用图元 */
+.an-cell{transition:fill .25s ease,opacity .25s ease}
+.an-ring{transition:x .38s cubic-bezier(.34,1.24,.64,1),y .38s cubic-bezier(.34,1.24,.64,1);
+  fill:none;stroke:var(--accent);stroke-width:2.2;rx:5}
+.an-hot{fill:var(--accent-soft)!important}
+.an-num{font-family:var(--mono);font-size:12px;fill:var(--ink-3);text-anchor:middle;
+  dominant-baseline:central;transition:fill .2s}
+.an-num.on{fill:var(--accent-ink);font-weight:600}
+.an-lbl{font-family:var(--mono);font-size:10.5px;fill:var(--ink-3)}
+.an-out{transition:opacity .3s ease,fill .3s ease}
+@media(max-width:640px){
+  .an-body{padding:10px 8px 2px}
+  .an-cap{font-size:12.5px;padding:6px 12px 10px}
+  .an-ctrl,.an-dots{padding-left:12px;padding-right:12px}
+  .an-num{font-size:11px}
+}
+
+/* 动画图元：颜色走 CSS 类，避免 SVG 属性里 var() 不解析 */
+.an-cell{fill:var(--surface-2);stroke:var(--line);stroke-width:.5}
+.an-cell.hot{fill:var(--accent-soft);stroke:var(--accent);stroke-width:1}
+.an-num{fill:var(--ink-3)}
+.an-num.hot{fill:var(--accent-ink);font-weight:600}
+.an-num.done{fill:var(--ink)}
+.an-oCell{fill:var(--surface);stroke:var(--line);stroke-width:.5}
+.an-oCell.hot{fill:var(--accent-soft);stroke:var(--accent);stroke-width:1}
+.an-oCell.done{fill:var(--surface-2)}
+.an-otxt{font-family:var(--mono);font-size:15px;font-weight:600;fill:var(--ink);
+  text-anchor:middle;dominant-baseline:central;opacity:0;transition:opacity .3s}
+.an-otxt.on{opacity:1}
+.an-res{font-family:var(--mono);font-size:30px;font-weight:600;fill:var(--ink);
+  dominant-baseline:central;transition:fill .3s}
+.an-res.pos{fill:var(--accent-ink)}
+.an-res.neg{fill:var(--warm)}
+
+/* 动画细节修正 */
+.an-otxt{font-size:16px;transition:opacity .12s}
+.an-cell.hot,.an-oCell.hot{fill:color-mix(in srgb, var(--accent) 16%, var(--surface))}
+.an-oCell.done{fill:color-mix(in srgb, var(--accent) 6%, var(--surface))}

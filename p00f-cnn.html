@@ -50,6 +50,10 @@
 
   <h2><span class="n">2</span>手算一次：竖线是怎么被检测出来的</h2>
   <div class="sec">
+    <p>先看一遍整体过程：卷积核从左上角出发，每次向右滑一格，每滑到一个位置就算出一个数，
+      填进右边的输出图。九个位置算完，输出图就填满了。</p>
+    <div class="an-wrap" data-anim="conv"></div>
+
     <p>取一张 5×5 的图，中间有一条竖线（1 表示亮，0 表示暗）：</p>
     <div class="q">0　0　1　0　0<br>0　0　1　0　0<br>0　0　1　0　0<br>0　0　1　0　0<br>0　0　1　0　0</div>
     <p>再取一个 3×3 的核，它的作用就是"找竖直边缘"：</p>
@@ -282,6 +286,102 @@
 
   <div id="termIndex"></div>
 </main>
+<script src="assets/anim.js"></script>
+<script>
+(function(){
+  var IMG=[[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0]];
+  var OUT=[[3,0,-3],[3,0,-3],[3,0,-3]];
+  var C=44,G=3,X0=40,Y0=66,OX=400;
+  var caps=['卷积核盖在左上角（3×3）。接下来它每次向右滑一格，滑到头换下一行，共九个位置。'];
+  for(var t=0;t<9;t++){
+    var r0=Math.floor(t/3),c0=t%3,v0=OUT[r0][c0];
+    var why = c0===0 ? '盖住左半边的「暗→亮」过渡，得正分'
+            : c0===1 ? '整片亮度均匀，左右没有差别，得 0'
+            : '盖住右半边的「亮→暗」过渡，得负分';
+    caps.push('第 '+(t+1)+' 格：盖住第 '+(r0+1)+'–'+(r0+3)+' 行、第 '+(c0+1)+'–'+(c0+3)+' 列，九项相乘求和 = <b>'+(v0<0?'−'+(-v0):v0)+'</b>。'+why+'。');
+  }
+  function mk(tag,attrs){
+    var e=document.createElementNS('http://www.w3.org/2000/svg',tag);
+    for(var k in attrs) e.setAttribute(k,attrs[k]);
+    return e;
+  }
+  var built=false, cells=[], nums=[], ocells=[], otxts=[], ring, res, resLbl;
+  function build(host){
+    if(built) return;
+    var svg=mk('svg',{viewBox:'0 0 680 330',width:'100%','aria-label':'卷积核滑过输入图，逐格生成输出图'});
+    var defs=mk('defs',{});
+    defs.innerHTML='<marker id="anA" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="#B9Bcc4" stroke-width="1.5" stroke-linecap="round"/></marker>';
+    svg.appendChild(defs);
+
+    var l1=mk('text',{class:'an-lbl',x:X0,y:Y0-16}); l1.textContent='输入 5×5'; svg.appendChild(l1);
+    var l2=mk('text',{class:'an-lbl',x:OX,y:Y0-16}); l2.textContent='输出 3×3'; svg.appendChild(l2);
+
+    for(var r=0;r<5;r++)for(var c=0;c<5;c++){
+      var x=X0+c*(C+G), y=Y0+r*(C+G);
+      var rect=mk('rect',{x:x,y:y,width:C,height:C,rx:5,class:'an-cell'});
+      svg.appendChild(rect); cells.push(rect);
+      var tx=mk('text',{x:x+C/2,y:y+C/2,class:'an-num'}); tx.textContent=IMG[r][c];
+      svg.appendChild(tx); nums.push(tx);
+    }
+    for(var r2=0;r2<3;r2++)for(var c2=0;c2<3;c2++){
+      var x2=OX+c2*(C+G), y2=Y0+r2*(C+G);
+      var rr=mk('rect',{x:x2,y:y2,width:C,height:C,rx:5,class:'an-oCell'});
+      svg.appendChild(rr); ocells.push(rr);
+      var tt=mk('text',{x:x2+C/2,y:y2+C/2,class:'an-otxt'});
+      svg.appendChild(tt); otxts.push(tt);
+    }
+    var ay=Y0+2.5*C+G;
+    svg.appendChild(mk('line',{x1:X0+5*(C+G)+6,y1:ay,x2:OX-16,y2:ay,
+      stroke:'#C9CCD3','stroke-width':1.2,'marker-end':'url(#anA)'}));
+
+    ring=mk('rect',{class:'an-ring',x:X0-4,y:Y0-4,width:3*C+2*G+8,height:3*C+2*G+8,rx:7});
+    svg.appendChild(ring);
+
+    res=mk('text',{x:566,y:Y0+40,class:'an-res'}); svg.appendChild(res);
+    resLbl=mk('text',{x:566,y:Y0+72,class:'an-lbl'}); svg.appendChild(resLbl);
+
+    host.appendChild(svg);
+    built=true;
+  }
+  window.ANIMS.conv={
+    title:'卷积核滑过全图',
+    count:10,
+    captions:caps,
+    render:function(i,host){
+      build(host);
+      var r=-1,c=-1;
+      if(i>0){ var t=i-1; r=Math.floor(t/3); c=t%3; }
+      ring.setAttribute('x', X0+(i===0?0:c)*(C+G)-4);
+      ring.setAttribute('y', Y0+(i===0?0:r)*(C+G)-4);
+
+      for(var rr=0;rr<5;rr++)for(var cc=0;cc<5;cc++){
+        var idx=rr*5+cc;
+        var hot = i>0 && rr>=r && rr<r+3 && cc>=c && cc<c+3;
+        cells[idx].classList.toggle('hot', hot);
+        nums[idx].classList.toggle('hot', hot);
+      }
+      var done = i>0 ? i : 0;
+      for(var k=0;k<9;k++){
+        var kr=Math.floor(k/3), kc=k%3, v=OUT[kr][kc];
+        var isDone = k<done, isCur = (k===done-1);
+        ocells[k].classList.toggle('done', isDone);
+        ocells[k].classList.toggle('hot', isCur);
+        otxts[k].textContent = isDone ? (v<0?'−'+(-v):v) : '';
+        otxts[k].classList.toggle('on', isDone);
+      }
+      if(i>0){
+        var vv=OUT[r][c];
+        res.textContent = (vv<0?'−'+(-vv):vv);
+        res.setAttribute('class','an-res '+(vv>0?'pos':'neg'));
+        resLbl.textContent = '第 '+(r+1)+' 行、第 '+(c+1)+' 列';
+      }else{
+        res.textContent=''; resLbl.textContent='';
+      }
+    }
+  };
+  if(window.Anim) Anim.boot();
+})();
+</script>
 <script src="assets/course.js"></script>
 </body>
 </html>

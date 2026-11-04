@@ -67,6 +67,9 @@
 
   <h2><span class="n">2</span>手算一次：判断这句话是不是疑问句</h2>
   <div class="sec">
+    <p>下面用两个信号、三个参数走一遍。每点一次「下一步」，只发生一件事——先乘权重，再求和，再加偏置，最后过门槛。</p>
+    <div class="an-wrap" data-anim="neuron"></div>
+
     <p>用两个信号、三个参数，把这个神经元搭出来，然后拿四个句子试。</p>
 
     <h3>先定输入</h3>
@@ -315,6 +318,86 @@
 
   <div id="termIndex"></div>
 </main>
+<script src="assets/anim.js"></script>
+<script>
+(function(){
+  var X1=1, X2=1, W1=2.0, W2=1.5, B=-2.5;
+  var S=X1*W1+X2*W2, T=S+B, R=Math.max(0,T);
+  function mk(t,a){var e=document.createElementNS('http://www.w3.org/2000/svg',t);for(var k in a)e.setAttribute(k,a[k]);return e;}
+  var caps=[
+    '两个输入：句末有问号（x₁=1）、句中有「吗」（x₂=1）。现在它们还是原始信号。',
+    '各自乘上权重：问号权重 2.0，得到 <b>2.0</b>；「吗」权重 1.5，得到 <b>1.5</b>。权重决定这个信号有多重要。',
+    '两个加权结果相加：2.0 + 1.5 = <b>3.5</b>。这一步只做加法，没有任何判断。',
+    '加上偏置 b = −2.5：3.5 − 2.5 = <b>1.0</b>。偏置在这里把门槛抬高——光有一个证据不够，两个都齐才够 2.5 分。',
+    '过 ReLU：max(0, 1.0) = <b>1.0</b>。正数原样通过。如果上一步是负数，这里会直接变成 0。',
+    '输出 1.0 大于 0，判为<b>疑问句</b>。整个神经元只做了四件事：乘、加、加、比大小。'
+  ];
+  var built=false, boxes={}, vals={}, flow=[], arrow=[];
+  function build(host){
+    if(built) return;
+    var svg=mk('svg',{viewBox:'0 0 680 230',width:'100%','aria-label':'一个神经元的四步计算'});
+    var defs=mk('defs',{});
+    defs.innerHTML='<marker id="nA" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="#B9BCC4" stroke-width="1.5" stroke-linecap="round"/></marker>';
+    svg.appendChild(defs);
+    var stages=[
+      {k:'mul', x:40,  w:150, t:'乘权重', s:'x·w'},
+      {k:'sum', x:230, w:130, t:'求和',   s:'Σ'},
+      {k:'bias',x:400, w:120, t:'加偏置', s:'+ b'},
+      {k:'relu',x:560, w:90,  t:'ReLU',  s:'max(0,x)'}
+    ];
+    stages.forEach(function(st,i){
+      var g=mk('g',{});
+      var r=mk('rect',{x:st.x,y:66,width:st.w,height:74,rx:9,class:'an-cell'});
+      g.appendChild(r);
+      var t1=mk('text',{x:st.x+st.w/2,y:88,'text-anchor':'middle',class:'an-lbl'});
+      t1.textContent=st.t; g.appendChild(t1);
+      var t2=mk('text',{x:st.x+st.w/2,y:112,'text-anchor':'middle','font-size':'10',
+        fill:'var(--ink-3)','font-family':'var(--mono)'}); t2.textContent=st.s; g.appendChild(t2);
+      var v=mk('text',{x:st.x+st.w/2,y:136,'text-anchor':'middle',class:'an-res',
+        'font-size':'17'}); g.appendChild(v);
+      svg.appendChild(g);
+      boxes[st.k]=r; vals[st.k]=v;
+      if(i<stages.length-1){
+        var x1=st.x+st.w+4, x2=stages[i+1].x-6, y=103;
+        var ln=mk('line',{x1:x1,y1:y,x2:x2,y2:y,stroke:'#C9CCD3','stroke-width':1.2,'marker-end':'url(#nA)'});
+        svg.appendChild(ln); flow.push(ln);
+      }
+    });
+    // 输入标注
+    var inLbl=mk('text',{x:40,y:48,class:'an-lbl'});
+    inLbl.textContent='x₁=1（问号）　x₂=1（吗）';
+    svg.appendChild(inLbl);
+    // 输出
+    var outT=mk('text',{x:40,y:190,'font-size':'13','fill':'var(--ink-2)'});
+    outT.textContent='判断：';
+    svg.appendChild(outT);
+    var outV=mk('text',{x:92,y:190,'font-size':'15','font-weight':'600',fill:'var(--ink)'});
+    outV.textContent='';
+    svg.appendChild(outV);
+    boxes._out=outV;
+    host.appendChild(svg);
+    built=true;
+  }
+  window.ANIMS.neuron={
+    title:'一个神经元走完一轮',
+    count:6,
+    captions:caps,
+    render:function(i,host){
+      build(host);
+      var order=['mul','sum','bias','relu'];
+      var active = i>=1 ? order[Math.min(i-1,3)] : null;
+      order.forEach(function(k){ boxes[k].classList.toggle('hot', k===active); });
+      vals.mul.textContent = i>=1 ? '2.0 + 1.5' : '';
+      vals.sum.textContent = i>=2 ? '3.5' : '';
+      vals.bias.textContent= i>=3 ? '1.0' : '';
+      vals.relu.textContent= i>=4 ? '1.0' : '';
+      boxes._out.textContent = i>=5 ? '是疑问句（1.0 > 0）' : '—';
+      flow.forEach(function(l,idx){ l.setAttribute('stroke', i>=idx+2 ? 'var(--accent)':'#C9CCD3'); });
+    }
+  };
+  if(window.Anim) Anim.boot();
+})();
+</script>
 <script src="assets/course.js"></script>
 </body>
 </html>
