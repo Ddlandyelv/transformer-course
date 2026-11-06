@@ -167,6 +167,9 @@ const G={
   side.className='side'; side.id='side';
   let navHTML='<div class="side-prog"><div class="bar"><i id="pbar" style="width:'+pct+'%"></i></div>'+
     '<div class="txt"><span>学习进度</span><span id="ptxt">'+done.size+' / '+FLAT.length+'</span></div></div>';
+  navHTML+='<div class="part">原文</div><nav class="nav">'+
+    '<a href="reader.html" class="'+(pageId==='reader'?'on':'')+'">'+
+    '<em>R</em><span class="t">论文原文 · 逐段拆解</span><span class="dot"></span></a></nav>';
   COURSE.forEach(g=>{
     navHTML+='<div class="part">'+g.p+'</div><nav class="nav">';
     g.items.forEach(it=>{
@@ -900,7 +903,7 @@ document.querySelectorAll('[data-w]').forEach(el=>{
 (function(){
   if(window.__ENHANCED_LOADED__) return;
   window.__ENHANCED_LOADED__=true;
-  var ASSET_V='?v=20261104f';
+  var ASSET_V='?v=20261106b';
   function v(src){ return src + (src.indexOf('?')<0 ? ASSET_V : ''); }
   function load(src,next){
     var s=document.createElement('script');

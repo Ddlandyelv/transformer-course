@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Attention Is All You Need · 原文对照阅读</title>
+<meta name="description" content="Transformer 原始论文《Attention Is All You Need》全文，逐段中文拆解，原文与解读左右对照。">
+<script>
+try{var t=localStorage.getItem('tfc-theme');if(t)document.documentElement.dataset.theme=t;}catch(e){}
+</script>
+<link rel="stylesheet" href="assets/style.css?v=20261106b">
+<link rel="stylesheet" href="assets/reader.css?v=20261106b">
+</head>
+<body data-mode="both" data-fs="m">
+
+<header class="rd-top">
+  <a class="rd-back" href="index.html" aria-label="返回课程">
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3L5 8l5 5"/></svg>
+    <span>课程</span>
+  </a>
+  <div class="rd-title">
+    <b>Attention Is All You Need</b>
+    <span>原文 · 逐段拆解</span>
+  </div>
+  <div class="rd-tools">
+    <div class="rd-seg" role="group" aria-label="阅读模式">
+      <button data-mode="both" class="on">对照</button>
+      <button data-mode="en">原文</button>
+      <button data-mode="zh">拆解</button>
+    </div>
+    <div class="rd-seg rd-seg-fs" role="group" aria-label="字号">
+      <button data-fs="s">A−</button>
+      <button data-fs="m" class="on">A</button>
+      <button data-fs="l">A+</button>
+    </div>
+    <button class="rd-menu" id="rdMenu" aria-label="目录">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M2 4h12M2 8h12M2 12h12"/></svg>
+    </button>
+  </div>
+  <div class="rd-prog"><i id="rdProg"></i></div>
+</header>
+
+<div class="rd-shell">
+  <aside class="rd-side" id="rdSide">
+    <div class="rd-side-h">论文目录</div>
+    <nav class="rd-toc" id="rdToc"></nav>
+    <div class="rd-side-f">
+      <p>原文取自 arXiv:1706.03762v7。左侧是论文原句，右侧是逐段解释；术语在首次出现处给出。</p>
+    </div>
+  </aside>
+
+  <main class="rd-main" id="rdMain">
+    <div class="rd-loading">正在载入论文…</div>
+  </main>
+</div>
+
+<div class="rd-veil" id="rdVeil"></div>
+
+<script src="assets/tex.js?v=20261106b"></script>
+<script src="assets/paper-data.js?v=20261106b"></script>
+<script src="assets/paper-data-b.js?v=20261106b"></script>
+<script src="assets/paper-data-c.js?v=20261106b"></script>
+<script src="assets/reader.js?v=20261106b"></script>
+</body>
+</html>

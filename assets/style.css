@@ -634,3 +634,74 @@ table.mx td.best{border-color:var(--accent);font-weight:600}
 .an-otxt{transform-box:fill-box;transform-origin:center;transform:scale(.75);
   transition:opacity .22s ease, transform .3s cubic-bezier(.34,1.3,.64,1)}
 .an-otxt.on{transform:scale(1)}
+
+/* ===== 窄屏：多列表格改为堆叠块（避免中文被压成竖排） ===== */
+@media(max-width:640px){
+  .tb-stack{display:block;min-width:0}
+  .tb-stack thead{display:none}
+  .tb-stack tbody{display:block}
+  .tb-stack tr{
+    display:block;padding:13px 0;
+    border-bottom:1px solid var(--line);
+  }
+  .tb-stack tr:last-child{border-bottom:0}
+  .tb-stack td{
+    display:block;padding:0;border:0;
+    min-width:0;word-break:normal;overflow-wrap:break-word;
+  }
+  .tb-stack td:nth-child(1){
+    font-size:12.5px;font-weight:600;color:var(--ink);
+    margin-bottom:6px;
+  }
+  .tb-stack td:nth-child(1) br{display:none}
+  .tb-stack td:nth-child(1) span{
+    display:inline;font-size:11.5px !important;
+    color:var(--ink-3);font-weight:400;
+  }
+  .tb-stack td:nth-child(1) span::before{content:" · "}
+  .tb-stack td:nth-child(2){
+    font-size:12.8px;line-height:1.8;color:var(--ink-2);
+  }
+  .tb-stack td:nth-child(3){
+    display:inline-block;margin-top:8px;
+    font-family:var(--mono);font-size:11.5px;
+    color:var(--ink-3);text-align:left;
+  }
+  .tb-stack-time td:nth-child(3)::before{content:"用时 "}
+  .tb-stack-link td:nth-child(3)::before{content:"对应 "}
+  .tb-stack-link td:nth-child(3){font-family:inherit;font-size:12.5px}
+}
+
+/* ===== 原文阅读器入口 ===== */
+.reader-entry{
+  display:flex; align-items:center; gap:14px;
+  margin:22px 0 6px; padding:15px 18px;
+  border:1px solid var(--accent-line); border-radius:12px;
+  background:linear-gradient(180deg,
+    color-mix(in srgb,var(--accent) 7%,var(--surface)),
+    color-mix(in srgb,var(--accent) 3%,var(--surface)));
+  text-decoration:none; transition:.16s;
+}
+.reader-entry:hover{
+  border-color:var(--accent);
+  box-shadow:0 2px 10px -4px color-mix(in srgb,var(--accent) 40%,transparent);
+}
+.re-ic{
+  width:34px; height:34px; flex:none; border-radius:9px;
+  display:grid; place-items:center;
+  background:var(--accent); color:#fff;
+}
+.re-tx{ display:flex; flex-direction:column; gap:3px; min-width:0; }
+.re-tx b{ font-size:14px; font-weight:650; color:var(--ink); letter-spacing:-.01em; }
+.re-tx span{ font-size:12.4px; line-height:1.65; color:var(--ink-3); }
+.re-go{
+  margin-left:auto; flex:none;
+  display:inline-flex; align-items:center; gap:4px;
+  font-size:12.5px; font-weight:600; color:var(--accent-deep);
+}
+@media(max-width:640px){
+  .reader-entry{ flex-wrap:wrap; gap:10px; padding:13px 14px; }
+  .re-tx{ flex:1 1 100%; order:3; }
+  .re-go{ margin-left:auto; }
+  .re-tx b{ font-size:13.5px; }
+}
